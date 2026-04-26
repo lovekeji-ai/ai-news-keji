@@ -1,0 +1,7 @@
+interface:
+  display_name: "AI News Daily"
+  short_description: "Generate AI and tech daily news digests"
+  default_prompt: "Use $ai-news-keji to generate today's AI news daily digest."
+
+policy:
+  allow_implicit_invocation: true

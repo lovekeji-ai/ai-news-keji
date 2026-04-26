@@ -1,0 +1,81 @@
+setup:
+  initialized: false
+  init_schema_version: 1
+
+# ai-news-keji public configuration template.
+# Run scripts/init.py to create a local initialized config.yaml.
+
+paths:
+  # Raw daily notes and summary notes are written here.
+  output_dir: ~/ai-news-keji/output
+
+  # Optional local scoring rules and personal interest profile.
+  # If this path is missing, the skill falls back to references/filter-rules.example.md.
+  filter_rules: ~/ai-news-keji/filter-rules.md
+
+  # Keep this outside the skill folder because raw caches can contain private email content.
+  cache_dir: ~/.cache/ai-news-keji
+
+settings:
+  # yesterday / today
+  default_date: yesterday
+  timezone: Asia/Shanghai
+  retention_days: 10
+  dedup_window_days: 7
+  continuation_penalty: 2
+
+pipeline:
+  # Enable only source groups you have configured.
+  enabled_sources:
+    - rss
+    - websites
+    # - email
+  skip_unavailable_sources: true
+
+email:
+  # none / imap / mcp
+  # Use "imap" for a standard mailbox connection without requiring a Gmail MCP.
+  # Keep secrets in environment variables, never in this YAML file.
+  mode: none
+  imap:
+    host: imap.gmail.com
+    port: 993
+    ssl: true
+    folder: INBOX
+    username_env: AI_NEWS_IMAP_USERNAME
+    password_env: AI_NEWS_IMAP_PASSWORD
+    max_body_chars: 20000
+
+external_skills:
+  # scripts/init.py installs original repos here and symlinks selected skills to link_targets.
+  install_dir: ~/.local/share/ai-news-keji/external-skills
+  link_targets:
+    - ~/.claude/skills
+
+  follow-builders:
+    enabled: false
+    install_kind: git-node-skill
+    repo: https://github.com/zarazhangrui/follow-builders.git
+    install_path: ~/.local/share/ai-news-keji/external-skills/follow-builders
+    link_name: follow-builders
+    command: cd ~/.local/share/ai-news-keji/external-skills/follow-builders/scripts && node prepare-digest.js 2>/dev/null
+
+  bestblogs:
+    enabled: false
+    install_kind: npm-cli
+    repo: https://github.com/ginobefun/bestblogs
+    command: bestblogs discover today --limit 20 --json 2>/dev/null
+
+  ak-rss-digest:
+    enabled: false
+    install_kind: git-subskill
+    repo: https://github.com/rookie-ricardo/erduo-skills.git
+    install_path: ~/.local/share/ai-news-keji/external-skills/ak-rss-digest
+    source_path: ~/.local/share/ai-news-keji/external-skills/erduo-skills/skills/ak-rss-digest
+    repo_path: ~/.local/share/ai-news-keji/external-skills/erduo-skills
+    link_name: ak-rss-digest
+    command: cd ~/.local/share/ai-news-keji/external-skills/erduo-skills && python3 skills/ak-rss-digest/scripts/fetch_today_feed_items.py --days 1 --timezone Asia/Shanghai --format json 2>/dev/null
+
+notification:
+  # none / macos
+  method: none

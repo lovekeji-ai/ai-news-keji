@@ -1,0 +1,91 @@
+# Public source template for ai-news-keji.
+# Copy this file to sources.yaml and remove or add sources to match your subscriptions.
+
+email:
+  - name: TLDR AI
+    from: dan@tldrnewsletter.com
+    subject_contains: TLDR AI
+    category: AI 技术+论文
+    frequency: weekday
+
+  - name: TLDR Dev
+    from: dan@tldrnewsletter.com
+    subject_contains: TLDR Dev
+    category: 软件工程
+    frequency: weekday
+
+  - name: TLDR Founders
+    from: dan@tldrnewsletter.com
+    subject_contains: TLDR Founders
+    category: 创业商业
+    frequency: weekday
+
+  - name: TLDR
+    from: dan@tldrnewsletter.com
+    subject_contains: null
+    category: 泛科技快讯
+    frequency: weekday
+
+  - name: The Rundown AI
+    from: news@daily.therundown.ai
+    category: AI 日报
+    frequency: daily
+
+  - name: The Neuron
+    from: theneuron@newsletter.theneurondaily.com
+    category: AI 商业趋势
+    frequency: daily
+
+  - name: AI Breakfast
+    from: aibreakfast@mail.beehiiv.com
+    category: AI 综述
+    frequency: 3x_week
+
+  - name: AI Valley
+    from: aivalley@mail.beehiiv.com
+    category: AI 工具+趋势
+    frequency: daily
+
+  - name: Ben's Bites
+    from: bensbites@substack.com
+    category: AI 工具+开发者
+    frequency: daily
+
+rss:
+  - name: 量子位
+    url: https://www.qbitai.com/feed
+    category: AI 中文媒体
+    frequency: daily
+
+  - name: 机器之心
+    url: https://www.jiqizhixin.com/rss
+    category: AI 中文媒体
+    frequency: daily
+
+  - name: 三花AI快讯
+    url: https://sanhua.himrr.com/daily-news/feed
+    category: AIGC 前沿
+    frequency: daily
+
+skills:
+  - name: follow-builders
+    type: script
+    category: AI Builder 动态
+    frequency: daily
+
+  - name: bestblogs
+    type: cli
+    category: 精选推荐
+    frequency: daily
+
+  - name: ak-rss-digest
+    type: script
+    category: 独立博客
+    frequency: weekly
+
+websites:
+  - name: Readwise Weekly
+    url: https://wise.readwise.io
+    type: weekly
+    category: 精选推荐
+    frequency: weekly
