@@ -34,6 +34,7 @@ PUBLIC_FILES = (
     "requirements.txt",
     "scripts/init.py",
     "scripts/init_wizard.py",
+    "scripts/check-run-state.py",
     "scripts/fetch-email-imap.py",
     "scripts/fetch-rss.py",
     "scripts/doctor.py",
