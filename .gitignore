@@ -11,6 +11,7 @@ __pycache__/
 .venv/
 .env
 .env.*
+CLAUDE.md
 config.yaml
 sources.yaml
 cache/
