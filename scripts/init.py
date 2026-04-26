@@ -420,13 +420,13 @@ def check_config() -> int:
     elif setup.get("guided_setup_completed") is not True:
         needs_agent_setup = True
         errors.append("尚未完成初始化向导，需要在 Agent 对话中确认集成、Newsletter、输出目录和个人偏好")
-        recommendations.append("完成 Agent 初始化向导：收集用户回答后运行 python3 scripts/init.py --answers-file <answers.json>")
+        recommendations.append("继续 Agent 分步初始化：按当前步骤说明作用并等待用户回答")
     elif setup.get("guided_setup_completed") is True:
         incomplete_steps = [step for step, done in setup_steps(config).items() if not done]
         if incomplete_steps:
             needs_agent_setup = True
             errors.append(f"初始化向导仍有未完成步骤：{', '.join(incomplete_steps)}")
-            recommendations.append("完成 Agent 初始化向导：收集用户回答后运行 python3 scripts/init.py --answers-file <answers.json>")
+            recommendations.append("继续 Agent 分步初始化：按当前步骤说明作用并等待用户回答")
     if int(setup.get("init_schema_version") or 0) < SETUP_SCHEMA_VERSION:
         needs_agent_setup = True
         errors.append("setup.init_schema_version 已过期，需要重新完成 Agent 初始化向导或手动迁移 config.yaml")
@@ -560,9 +560,9 @@ def check_external(errors: list[str], warnings: list[str], recommendations: list
 
 def add_init_recommendations(recommendations: list[str], first_time: bool = False) -> None:
     if first_time:
-        recommendations.append("进入 Agent 初始化向导：先收集用户回答，再运行 python3 scripts/init.py --answers-file <answers.json>")
+        recommendations.append("进入 Agent 分步初始化：下一条消息只推进第 1 步外部集成选择")
         return
-    recommendations.append("继续 Agent 初始化向导：收集用户回答后运行 python3 scripts/init.py --answers-file <answers.json>")
+    recommendations.append("继续 Agent 分步初始化：按当前步骤说明作用并等待用户回答")
 
 
 def unique_items(items: list[str]) -> list[str]:
@@ -582,6 +582,7 @@ def print_check_result(
     recommendations: list[str],
     first_time_setup: bool = False,
 ) -> int:
+    should_print_agent_flow = first_time_setup or any("Agent 分步初始化" in item for item in recommendations)
     if first_time_setup and errors:
         print("[info] 检测到首次启动：本地初始化尚未完成")
         print("[info] 进入 Agent 初始化向导：在对话中收集配置，再写入本地文件")
@@ -593,6 +594,9 @@ def print_check_result(
         print("[error] 初始化检查失败")
         for recommendation in unique_items(recommendations) or ["进入 Agent 初始化向导"]:
             print(f"[next] {recommendation}")
+        if should_print_agent_flow:
+            print()
+            print_agent_setup_flow(SKILL_ROOT)
         return 1
     for recommendation in unique_items(recommendations):
         print(f"[next] 可选：{recommendation}")

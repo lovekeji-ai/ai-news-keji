@@ -201,12 +201,7 @@ def print_agent_setup_flow(skill_root: Path) -> None:
     print("检测到 ai-news-keji 还没有完成初始化。我会一步步带你完成配置：先选择外部集成，然后设置 Newsletter/IMAP，接着确认输出目录，最后填写个人偏好。我们先从第 1 步开始。")
     print("\n第 1 步问题：")
     print("这一步是决定是否接入额外信息源，用来扩大 AI builder、技术博客和 RSS 覆盖。建议安装 follow-builders、BestBlogs、ak-rss-digest 全部三个。你想全部安装、只安装其中一部分，还是暂不安装？")
-    print("\n后续推进规则：")
-    print("- 每一步都先说明这一步的作用，再引导用户做具体选择或填写内容。")
-    print("- 用户回答第 1 步后，再进入第 2 步 Newsletter 来源；先说明这一步用于覆盖邮件 Newsletter 信息源，再展示 sources.yaml / sources.example.yaml 里的订阅地址和发件人白名单。")
-    print("- 用户选择 imap 后，再单独说明 IMAP 配置的作用，并确认 IMAP host、folder、账号环境变量名、密码/授权码环境变量名。")
-    print("- 接着依次说明并确认输出目录和个人偏好。")
-    print("- 全部答案收集完成后，Agent 保存 JSON 并运行：")
+    print("\n用户回答第 1 步后，再根据 SKILL.md 的分步流程推进下一步。全部答案收集完成后，Agent 保存 JSON 并运行：")
     print("python3 scripts/init.py --answers-file /path/to/ai-news-keji-init-answers.json")
     print("内部 JSON 字段：external_skills、newsletter、output_dir、preferences。")
 
