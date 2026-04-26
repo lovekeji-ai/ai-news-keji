@@ -195,33 +195,20 @@ def print_imap_setup_guide() -> None:
 
 
 def print_agent_setup_flow(skill_root: Path) -> None:
-    print("[info] 进入 ai-news-keji 初始化向导")
-    print("[info] 请先在 Agent 对话里确认配置，再由 Agent 写入本地文件。")
-    print("\n请按顺序向用户确认：")
-    print("1. 外部集成：是否安装 follow-builders、BestBlogs、ak-rss-digest；建议安装全部，用户也可以选择部分或都不安装。")
-    print("2. Newsletter：先展示下方订阅源，让用户订阅需要的信息源；再选择 imap、later 或 no。")
-    print("3. 如果选择 imap：确认 IMAP host、folder、账号环境变量名、密码/授权码环境变量名。")
-    print("4. 输出目录：确认 Markdown 日报默认写入目录。")
-    print("5. 个人偏好：建议用户填写关注主题、角色、项目、偏好的内容形式，以及要避开的内容。")
-    print_newsletter_subscription_guide(skill_root)
-    print_imap_setup_guide()
-    print("\nAgent 收集完成后，把答案保存为 JSON，并运行：")
+    print("[info] 进入 ai-news-keji Agent 分步初始化")
+    print("[info] 给用户的下一条消息只推进第 1 步；用户回答后再进入下一步。")
+    print("\n建议开场：")
+    print("检测到 ai-news-keji 还没有完成初始化。我会一步步带你完成配置：先选择外部集成，然后设置 Newsletter/IMAP，接着确认输出目录，最后填写个人偏好。我们先从第 1 步开始。")
+    print("\n第 1 步问题：")
+    print("这一步是决定是否接入额外信息源，用来扩大 AI builder、技术博客和 RSS 覆盖。建议安装 follow-builders、BestBlogs、ak-rss-digest 全部三个。你想全部安装、只安装其中一部分，还是暂不安装？")
+    print("\n后续推进规则：")
+    print("- 每一步都先说明这一步的作用，再引导用户做具体选择或填写内容。")
+    print("- 用户回答第 1 步后，再进入第 2 步 Newsletter 来源；先说明这一步用于覆盖邮件 Newsletter 信息源，再展示 sources.yaml / sources.example.yaml 里的订阅地址和发件人白名单。")
+    print("- 用户选择 imap 后，再单独说明 IMAP 配置的作用，并确认 IMAP host、folder、账号环境变量名、密码/授权码环境变量名。")
+    print("- 接着依次说明并确认输出目录和个人偏好。")
+    print("- 全部答案收集完成后，Agent 保存 JSON 并运行：")
     print("python3 scripts/init.py --answers-file /path/to/ai-news-keji-init-answers.json")
-    print("\nJSON 示例：")
-    print(
-        """{
-  "external_skills": ["follow-builders", "bestblogs", "ak-rss-digest"],
-  "newsletter": {
-    "choice": "later",
-    "host": "imap.gmail.com",
-    "folder": "INBOX",
-    "username_env": "AI_NEWS_IMAP_USERNAME",
-    "password_env": "AI_NEWS_IMAP_PASSWORD"
-  },
-  "output_dir": "~/ai-news-keji/output",
-  "preferences": "关注 AI 产品、模型能力、开发者工具和可落地案例；降低融资、招聘和纯营销内容权重。"
-}"""
-    )
+    print("内部 JSON 字段：external_skills、newsletter、output_dir、preferences。")
 
 
 def configure_newsletter(config: dict[str, Any], skill_root: Path) -> None:

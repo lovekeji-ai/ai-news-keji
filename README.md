@@ -80,12 +80,12 @@ python3 -m venv .venv
 chmod +x scripts/*.py
 ```
 
-首次使用由 Agent 在当前对话里完成配置。Agent 触发 `/ai-news-keji` 后会先运行初始化检查；如果发现还没有初始化，就启动初始化向导：
+首次使用由 Agent 在当前对话里完成配置。Agent 触发 `/ai-news-keji` 后会先运行初始化检查；如果发现还没有初始化，就说明接下来会一步步完成配置。每一步都会先解释这一步的作用，再引导用户做选择或填写内容：
 
-- 推荐用户选择是否安装三个集成化 Skill / CLI：`follow-builders`、`BestBlogs`、`ak-rss-digest`
-- 展示 Newsletter 订阅源清单，并询问是否接入 IMAP、稍后配置或不接入
-- 让用户确认默认输出目录
-- 引导用户输入个人偏好，用于生成本地 `filter_rules`；跳过时使用内置默认筛选逻辑
+- 第 1 步选择是否安装三个集成化 Skill / CLI：`follow-builders`、`BestBlogs`、`ak-rss-digest`
+- 第 2 步展示 Newsletter 订阅源清单，并询问是否接入 IMAP、稍后配置或不接入
+- 第 3 步确认默认输出目录
+- 第 4 步输入个人偏好，用于生成本地 `filter_rules`；跳过时使用内置默认筛选逻辑
 
 Agent 收集完答案后，会把答案写入临时 JSON，并调用：
 
