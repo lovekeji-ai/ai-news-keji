@@ -8,6 +8,7 @@ skills 到受管理目录，再软链到 Claude/Codex 的 skill 目录。
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shlex
 import shutil
@@ -25,10 +26,9 @@ except ImportError:
 
 from init_wizard import (
     add_enabled_source,
-    input_was_unavailable,
-    mark_setup_step,
+    apply_guided_answers,
+    print_agent_setup_flow,
     prompt_yes_no,
-    run_guided_setup,
     setup_steps,
 )
 
@@ -268,6 +268,41 @@ def parse_skill_list(value: Optional[str]) -> list[str]:
     return names
 
 
+def parse_answer_skill_list(value) -> list[str]:
+    if value in (None, False):
+        return []
+    if value is True:
+        return list(EXTERNAL_SKILLS)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"", "none", "no", "false", "skip", "later"}:
+            return []
+        if normalized in {"all", "yes", "true", "recommended"}:
+            return list(EXTERNAL_SKILLS)
+        return parse_skill_list(value)
+    if isinstance(value, list):
+        names = [str(item).strip() for item in value if str(item).strip()]
+        unknown = [name for name in names if name not in EXTERNAL_SKILLS]
+        if unknown:
+            raise SystemExit(f"未知外部 skill：{', '.join(unknown)}")
+        return names
+    raise SystemExit("answers-file 里的 external_skills 必须是数组、字符串或布尔值")
+
+
+def load_answers_file(path: str) -> dict:
+    answers_path = expand_path(path)
+    try:
+        with answers_path.open(encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        raise SystemExit(f"找不到 answers-file：{answers_path}") from None
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"answers-file 不是合法 JSON：{exc}") from None
+    if not isinstance(data, dict):
+        raise SystemExit("answers-file 顶层必须是 JSON object")
+    return data
+
+
 def choose_external_skills(args, guided_setup: bool = False) -> list[str]:
     explicit = parse_skill_list(args.skills)
     if explicit:
@@ -301,7 +336,7 @@ def choose_link_targets(args, selected: list[str]) -> list[Path]:
         raw_targets = []
 
     if not raw_targets and selected:
-        if args.yes or args.install_external_skills or args.skills:
+        if args.yes or args.install_external_skills or args.skills or args.answers_file:
             raw_targets = DEFAULT_LINK_TARGETS[:]
         else:
             if prompt_yes_no("是否通过软链把外部 skills 注册到 ~/.claude/skills？", default=True):
@@ -359,36 +394,45 @@ def check_config() -> int:
     warnings: list[str] = []
     recommendations: list[str] = []
     first_time_setup = False
+    needs_agent_setup = False
     config_path = SKILL_ROOT / "config.yaml"
     sources_path = SKILL_ROOT / "sources.yaml"
 
     if not config_path.exists():
         first_time_setup = True
-        errors.append("缺少 config.yaml。请运行：python3 scripts/init.py")
+        errors.append("缺少 config.yaml，需要先完成 Agent 初始化向导")
         add_init_recommendations(recommendations, first_time=True)
         return print_check_result(errors, warnings, recommendations, first_time_setup=first_time_setup)
     if not sources_path.exists():
         first_time_setup = True
-        errors.append("缺少 sources.yaml。请运行：python3 scripts/init.py")
+        needs_agent_setup = True
+        errors.append("缺少 sources.yaml，需要先完成 Agent 初始化向导")
         add_init_recommendations(recommendations, first_time=True)
+        return print_check_result(errors, warnings, recommendations, first_time_setup=first_time_setup)
 
     config = load_yaml(config_path)
     setup = config.get("setup") or {}
     if setup.get("initialized") is not True:
         first_time_setup = True
-        errors.append("setup.initialized 不是 true。请运行：python3 scripts/init.py")
+        needs_agent_setup = True
+        errors.append("setup.initialized 不是 true，需要先完成 Agent 初始化向导")
         add_init_recommendations(recommendations, first_time=True)
     elif setup.get("guided_setup_completed") is not True:
-        errors.append("尚未完成初始化向导。请运行 python3 scripts/init.py 选择集成、Newsletter、输出目录和个人偏好")
-        recommendations.append("完成初始化向导：python3 scripts/init.py")
+        needs_agent_setup = True
+        errors.append("尚未完成初始化向导，需要在 Agent 对话中确认集成、Newsletter、输出目录和个人偏好")
+        recommendations.append("完成 Agent 初始化向导：收集用户回答后运行 python3 scripts/init.py --answers-file <answers.json>")
     elif setup.get("guided_setup_completed") is True:
         incomplete_steps = [step for step, done in setup_steps(config).items() if not done]
         if incomplete_steps:
+            needs_agent_setup = True
             errors.append(f"初始化向导仍有未完成步骤：{', '.join(incomplete_steps)}")
-            recommendations.append("完成初始化向导：python3 scripts/init.py")
+            recommendations.append("完成 Agent 初始化向导：收集用户回答后运行 python3 scripts/init.py --answers-file <answers.json>")
     if int(setup.get("init_schema_version") or 0) < SETUP_SCHEMA_VERSION:
-        errors.append("setup.init_schema_version 已过期。请运行：python3 scripts/init.py --force，或手动迁移 config.yaml")
+        needs_agent_setup = True
+        errors.append("setup.init_schema_version 已过期，需要重新完成 Agent 初始化向导或手动迁移 config.yaml")
         add_init_recommendations(recommendations)
+    if needs_agent_setup:
+        return print_check_result(errors, warnings, recommendations, first_time_setup=first_time_setup)
 
     paths = config.get("paths") or {}
     for key in ("output_dir", "cache_dir"):
@@ -516,9 +560,9 @@ def check_external(errors: list[str], warnings: list[str], recommendations: list
 
 def add_init_recommendations(recommendations: list[str], first_time: bool = False) -> None:
     if first_time:
-        recommendations.append("首次启动向导：python3 scripts/init.py")
+        recommendations.append("进入 Agent 初始化向导：先收集用户回答，再运行 python3 scripts/init.py --answers-file <answers.json>")
         return
-    recommendations.append("交互式初始化：python3 scripts/init.py")
+    recommendations.append("继续 Agent 初始化向导：收集用户回答后运行 python3 scripts/init.py --answers-file <answers.json>")
 
 
 def unique_items(items: list[str]) -> list[str]:
@@ -540,14 +584,14 @@ def print_check_result(
 ) -> int:
     if first_time_setup and errors:
         print("[info] 检测到首次启动：本地初始化尚未完成")
-        print("[info] 推荐运行初始化向导：python3 scripts/init.py")
+        print("[info] 进入 Agent 初始化向导：在对话中收集配置，再写入本地文件")
     for warning in warnings:
         print(f"[warn] {warning}")
     for error in errors:
         print(f"[error] {error}")
     if errors:
         print("[error] 初始化检查失败")
-        for recommendation in unique_items(recommendations) or ["请运行：python3 scripts/init.py"]:
+        for recommendation in unique_items(recommendations) or ["进入 Agent 初始化向导"]:
             print(f"[next] {recommendation}")
         return 1
     for recommendation in unique_items(recommendations):
@@ -563,9 +607,10 @@ def main() -> int:
     )
     parser.add_argument("-h", "--help", action="help", help="显示帮助并退出")
     parser.add_argument("--check", action="store_true", help="检查初始化是否完成，已启用来源是否可用")
-    parser.add_argument("--yes", action="store_true", help="使用非交互默认值；不会安装可选外部 skills")
+    parser.add_argument("--yes", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--force", action="store_true", help="用示例模板覆盖 config.yaml 和 sources.yaml")
     parser.add_argument("--dry-run", action="store_true", help="只打印将执行的动作，不修改文件或安装依赖")
+    parser.add_argument("--answers-file", default=None, help="使用对话式初始化收集到的 JSON 答案完成初始化")
     parser.add_argument("--install-dir", default=DEFAULT_INSTALL_DIR, help="外部 skill 源码的受管理安装目录")
     parser.add_argument("--link-target", action="append", default=None, help="接收软链的 skill 目录；可重复传入")
     parser.add_argument("--no-link", action="store_true", help="只安装外部 skill 源码，不软链到 agent skill 目录")
@@ -577,7 +622,17 @@ def main() -> int:
     if args.check:
         return check_config()
 
-    guided_setup = not (args.yes or args.install_external_skills or args.skills)
+    answers = load_answers_file(args.answers_file) if args.answers_file else None
+    if args.yes and not (args.install_external_skills or args.skills or args.answers_file):
+        print_agent_setup_flow(SKILL_ROOT)
+        return 1
+
+    should_show_agent_flow = not (args.answers_file or args.install_external_skills or args.skills)
+    if should_show_agent_flow:
+        print_agent_setup_flow(SKILL_ROOT)
+        return 1
+
+    guided_setup = False
     config_path = SKILL_ROOT / "config.yaml"
     sources_path = SKILL_ROOT / "sources.yaml"
     existing_config = config_path.exists()
@@ -586,8 +641,6 @@ def main() -> int:
     print(f"ai-news-keji init: {SKILL_ROOT}")
     if not existing_config or not existing_sources:
         print("[info] 检测到首次启动；正在创建本地配置文件和运行目录")
-    if guided_setup:
-        print("[info] 开始初始化向导")
 
     if not command_exists("git"):
         print("[warn] 未安装 git；无法安装基于 git 的外部 skills")
@@ -596,9 +649,10 @@ def main() -> int:
     config = load_yaml(config_path if config_path.exists() else SKILL_ROOT / "config.example.yaml")
     if existing_config and (config.get("setup") or {}).get("initialized") is not True:
         print("[info] 本地初始化状态不完整；正在补齐初始化状态")
-    selected = choose_external_skills(args, guided_setup=guided_setup)
-    if guided_setup:
-        mark_setup_step(config, "external_skills_prompted")
+    if answers is not None:
+        selected = parse_answer_skill_list(answers.get("external_skills"))
+    else:
+        selected = choose_external_skills(args, guided_setup=guided_setup)
     install_dir = expand_path(args.install_dir)
     link_targets = choose_link_targets(args, selected)
 
@@ -612,13 +666,11 @@ def main() -> int:
         external_config.setdefault("link_targets", [str(path) for path in link_targets])
         print("[ok] 未选择可选外部 skills")
 
-    if guided_setup:
-        guided_setup_completed = run_guided_setup(config, SKILL_ROOT, dry_run=args.dry_run)
+    if answers is not None:
+        apply_guided_answers(config, SKILL_ROOT, answers, dry_run=args.dry_run)
+        guided_setup_completed = True
     else:
         guided_setup_completed = False
-
-    if guided_setup and input_was_unavailable():
-        print("[warn] 当前环境无法完整收集交互式输入；请在终端里运行 python3 scripts/init.py")
 
     update_setup_state(config, selected, guided_setup_completed=guided_setup_completed)
     create_runtime_dirs(config, dry_run=args.dry_run)

@@ -78,16 +78,20 @@ python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -r requirements.txt
 chmod +x scripts/*.py
-
-.venv/bin/python scripts/init.py
 ```
 
-`init.py` 会创建本地 `config.yaml` / `sources.yaml`，并启动首次使用向导：
+首次使用由 Agent 在当前对话里完成配置。Agent 触发 `/ai-news-keji` 后会先运行初始化检查；如果发现还没有初始化，就启动初始化向导：
 
 - 推荐用户选择是否安装三个集成化 Skill / CLI：`follow-builders`、`BestBlogs`、`ak-rss-digest`
 - 展示 Newsletter 订阅源清单，并询问是否接入 IMAP、稍后配置或不接入
 - 让用户确认默认输出目录
 - 引导用户输入个人偏好，用于生成本地 `filter_rules`；跳过时使用内置默认筛选逻辑
+
+Agent 收集完答案后，会把答案写入临时 JSON，并调用：
+
+```bash
+.venv/bin/python scripts/init.py --answers-file /path/to/ai-news-keji-init-answers.json
+```
 
 初始化完成后，运行强制校验：
 
@@ -95,19 +99,7 @@ chmod +x scripts/*.py
 .venv/bin/python scripts/init.py --check
 ```
 
-当这个 Skill 被 Agent 调用来生成日报时，工作流第一步也会执行同一个校验。如果检测到是首次启动、缺少本地配置，Agent 会先提示“检测到 ai-news-keji 还没有完成初始化，开始进行初始化。”，然后进入交互式初始化向导：
-
-```bash
-python3 scripts/init.py
-```
-
-如果当前 Agent 运行环境无法接收交互式输入，它会提示用户在终端里先运行上面的命令。其他校验失败时不会继续抓取新闻，而是提示用户按输出里的 `[next]` 命令处理。
-
-非交互默认初始化只用于显式跳过向导时创建基础配置；它不会安装可选外部 Skills，也不会收集 Newsletter 或个人偏好。普通 `/ai-news-keji` 日报流程仍要求先完成交互式初始化向导：
-
-```bash
-.venv/bin/python scripts/init.py --yes
-```
+当这个 Skill 被 Agent 调用来生成日报时，工作流第一步也会执行同一个校验。如果检测到首次启动、缺少本地配置或向导未完成，Agent 会先提示“检测到 ai-news-keji 还没有完成初始化，我先带你完成初始化向导。”，然后在当前对话里完成上述 5 个步骤。其他校验失败时不会继续抓取新闻，而是提示用户按输出里的 `[next]` 处理。
 
 一次性安装所有可选外部 Skills：
 

@@ -1,5 +1,5 @@
 """
-ai-news-keji 首次启动交互式向导。
+ai-news-keji 首次启动 Agent 对话式向导。
 
 用户引导流程集中放在这里，让 scripts/init.py 专注于配置校验、
 可选安装命令和 CLI 入口。
@@ -194,6 +194,36 @@ def print_imap_setup_guide() -> None:
         print(f"- {hint}")
 
 
+def print_agent_setup_flow(skill_root: Path) -> None:
+    print("[info] 进入 ai-news-keji 初始化向导")
+    print("[info] 请先在 Agent 对话里确认配置，再由 Agent 写入本地文件。")
+    print("\n请按顺序向用户确认：")
+    print("1. 外部集成：是否安装 follow-builders、BestBlogs、ak-rss-digest；建议安装全部，用户也可以选择部分或都不安装。")
+    print("2. Newsletter：先展示下方订阅源，让用户订阅需要的信息源；再选择 imap、later 或 no。")
+    print("3. 如果选择 imap：确认 IMAP host、folder、账号环境变量名、密码/授权码环境变量名。")
+    print("4. 输出目录：确认 Markdown 日报默认写入目录。")
+    print("5. 个人偏好：建议用户填写关注主题、角色、项目、偏好的内容形式，以及要避开的内容。")
+    print_newsletter_subscription_guide(skill_root)
+    print_imap_setup_guide()
+    print("\nAgent 收集完成后，把答案保存为 JSON，并运行：")
+    print("python3 scripts/init.py --answers-file /path/to/ai-news-keji-init-answers.json")
+    print("\nJSON 示例：")
+    print(
+        """{
+  "external_skills": ["follow-builders", "bestblogs", "ak-rss-digest"],
+  "newsletter": {
+    "choice": "later",
+    "host": "imap.gmail.com",
+    "folder": "INBOX",
+    "username_env": "AI_NEWS_IMAP_USERNAME",
+    "password_env": "AI_NEWS_IMAP_PASSWORD"
+  },
+  "output_dir": "~/ai-news-keji/output",
+  "preferences": "关注 AI 产品、模型能力、开发者工具和可落地案例；降低融资、招聘和纯营销内容权重。"
+}"""
+    )
+
+
 def configure_newsletter(config: dict[str, Any], skill_root: Path) -> None:
     print("\nNewsletter 来源：")
     print_newsletter_subscription_guide(skill_root)
@@ -235,13 +265,19 @@ def configure_output_dir(config: dict[str, Any]) -> None:
     mark_setup_step(config, "output_dir_selected")
 
 
-def write_preferences_file(config: dict[str, Any], skill_root: Path, preferences: str, dry_run: bool = False) -> bool:
+def write_preferences_file(
+    config: dict[str, Any],
+    skill_root: Path,
+    preferences: str,
+    dry_run: bool = False,
+    overwrite: bool = False,
+) -> bool:
     paths = config.setdefault("paths", {})
     raw_path = str(paths.get("filter_rules") or "~/ai-news-keji/filter-rules.md")
     paths["filter_rules"] = raw_path
     filter_path = expand_path(raw_path)
 
-    if filter_path.exists() and not prompt_yes_no(f"{filter_path} 已存在。是否用新的偏好覆盖它？", default=False):
+    if filter_path.exists() and not overwrite and not prompt_yes_no(f"{filter_path} 已存在。是否用新的偏好覆盖它？", default=False):
         print("[ok] 已保留现有筛选规则文件")
         return False
 
@@ -293,3 +329,68 @@ def run_guided_setup(config: dict[str, Any], skill_root: Path, dry_run: bool = F
     configure_output_dir(config)
     configure_preferences(config, skill_root, dry_run=dry_run)
     return not input_was_unavailable()
+
+
+def apply_newsletter_answer(config: dict[str, Any], answer: Any) -> None:
+    if isinstance(answer, str):
+        answer = {"choice": answer}
+    if not isinstance(answer, dict):
+        answer = {}
+
+    choice = str(answer.get("choice") or answer.get("mode") or "later").strip().lower()
+    if choice not in {"imap", "later", "no"}:
+        raise ValueError("newsletter.choice 必须是 imap、later 或 no")
+
+    email_config = config.setdefault("email", {})
+    imap_config = email_config.setdefault("imap", {})
+    setup = config.setdefault("setup", {})
+    setup["newsletter_choice"] = choice
+    mark_setup_step(config, "newsletter_prompted")
+
+    if choice == "imap":
+        add_enabled_source(config, "email")
+        email_config["mode"] = "imap"
+        imap_config["host"] = str(answer.get("host") or imap_config.get("host") or "imap.gmail.com")
+        imap_config["folder"] = str(answer.get("folder") or imap_config.get("folder") or "INBOX")
+        imap_config["username_env"] = str(
+            answer.get("username_env") or imap_config.get("username_env") or "AI_NEWS_IMAP_USERNAME"
+        )
+        imap_config["password_env"] = str(
+            answer.get("password_env") or imap_config.get("password_env") or "AI_NEWS_IMAP_PASSWORD"
+        )
+        print(f"[next] 抓取 Newsletter 前，请先设置环境变量 {imap_config['username_env']} 和 {imap_config['password_env']}")
+        return
+
+    email_config["mode"] = "none"
+    remove_enabled_source(config, "email")
+    if choice == "later":
+        print("[next] Newsletter 接入已标记为稍后配置")
+    else:
+        print("[ok] 已关闭 Newsletter 来源")
+
+
+def apply_output_dir_answer(config: dict[str, Any], output_dir: Any) -> None:
+    paths = config.setdefault("paths", {})
+    paths["output_dir"] = str(output_dir or paths.get("output_dir") or "~/ai-news-keji/output")
+    mark_setup_step(config, "output_dir_selected")
+
+
+def apply_preferences_answer(config: dict[str, Any], skill_root: Path, preferences: Any, dry_run: bool = False) -> None:
+    setup = config.setdefault("setup", {})
+    mark_setup_step(config, "preferences_prompted")
+    text = str(preferences or "").strip()
+    if text:
+        setup["preferences_configured"] = write_preferences_file(config, skill_root, text, dry_run=dry_run, overwrite=True)
+        return
+    setup["preferences_configured"] = False
+    print("[ok] 未填写个人偏好，将使用内置默认筛选逻辑")
+
+
+def apply_guided_answers(config: dict[str, Any], skill_root: Path, answers: dict[str, Any], dry_run: bool = False) -> None:
+    if not isinstance(answers, dict):
+        raise ValueError("answers-file 顶层必须是 JSON object")
+
+    mark_setup_step(config, "external_skills_prompted")
+    apply_newsletter_answer(config, answers.get("newsletter", "later"))
+    apply_output_dir_answer(config, answers.get("output_dir"))
+    apply_preferences_answer(config, skill_root, answers.get("preferences", ""), dry_run=dry_run)
