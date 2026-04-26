@@ -4,50 +4,59 @@
 email:
   - name: TLDR AI
     from: dan@tldrnewsletter.com
+    subscribe_url: https://tldr.tech/ai
     subject_contains: TLDR AI
     category: AI 技术+论文
     frequency: weekday
 
   - name: TLDR Dev
     from: dan@tldrnewsletter.com
+    subscribe_url: https://tldr.tech/webdev
     subject_contains: TLDR Dev
     category: 软件工程
     frequency: weekday
 
   - name: TLDR Founders
     from: dan@tldrnewsletter.com
+    subscribe_url: https://tldr.tech/founders
     subject_contains: TLDR Founders
     category: 创业商业
     frequency: weekday
 
   - name: TLDR
     from: dan@tldrnewsletter.com
+    subscribe_url: https://tldr.tech
     subject_contains: null
     category: 泛科技快讯
     frequency: weekday
 
   - name: The Rundown AI
     from: news@daily.therundown.ai
+    subscribe_url: https://www.rundown.ai
     category: AI 日报
     frequency: daily
 
   - name: The Neuron
     from: theneuron@newsletter.theneurondaily.com
+    subscribe_url: https://www.theneurondaily.com/subscribe
     category: AI 商业趋势
     frequency: daily
 
   - name: AI Breakfast
     from: aibreakfast@mail.beehiiv.com
+    subscribe_url: https://aibreakfast.ai
     category: AI 综述
     frequency: 3x_week
 
   - name: AI Valley
     from: aivalley@mail.beehiiv.com
+    subscribe_url: https://www.theaivalley.com/subscribe
     category: AI 工具+趋势
     frequency: daily
 
   - name: Ben's Bites
     from: bensbites@substack.com
+    subscribe_url: https://bensbites.co
     category: AI 工具+开发者
     frequency: daily
 

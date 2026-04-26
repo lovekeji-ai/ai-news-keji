@@ -1,6 +1,15 @@
 setup:
   initialized: false
   init_schema_version: 1
+  guided_setup_completed: false
+  selected_external_skills: []
+  newsletter_choice: later
+  preferences_configured: false
+  steps:
+    external_skills_prompted: false
+    newsletter_prompted: false
+    output_dir_selected: false
+    preferences_prompted: false
 
 # ai-news-keji public configuration template.
 # Run scripts/init.py to create a local initialized config.yaml.

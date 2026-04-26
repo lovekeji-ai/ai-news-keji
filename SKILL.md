@@ -16,6 +16,7 @@ Resolve all files relative to the skill directory, which is the directory contai
 - Local sources: `sources.yaml`
 - Public sources template: `sources.example.yaml`
 - Initializer: `scripts/init.py`
+- Initializer wizard: `scripts/init_wizard.py`
 - Summary template: `prompts/summary-template.md`
 - Health check: `scripts/doctor.py`
 - RSS fetcher: `scripts/fetch-rss.py`
@@ -25,12 +26,13 @@ Before running the workflow:
 
 1. Run `python3 scripts/init.py --check` from the skill directory.
 2. If the check fails because PyYAML is missing, run `python3 -m pip install -r requirements.txt`, then retry the check once.
-3. If the check reports first-time setup, missing `config.yaml`, missing `sources.yaml`, or `setup.initialized is not true`, tell the user: `检测到 ai-news-keji 还没有完成初始化，开始进行初始化。` Then run `python3 scripts/init.py --yes` to create the baseline local config without installing optional external skills, and retry `python3 scripts/init.py --check`.
-4. If the check still fails after the first-time initialization path, stop the workflow. Report the failed check output and the `[next]` command recommended by `init.py --check`.
-5. Do not install optional external skills or CLIs unless the user explicitly asks for them.
-6. Read `config.yaml` and `sources.yaml` only after the init check passes.
-7. Expand `~` and environment variables in paths.
-8. Never write private output, raw email caches, tokens, or user-specific config into files intended for publishing.
+3. If the check reports first-time setup, missing `config.yaml`, missing `sources.yaml`, or `setup.initialized is not true`, tell the user: `检测到 ai-news-keji 还没有完成初始化，开始进行初始化。` Then run `python3 scripts/init.py` so the user can choose recommended integrations, newsletter setup, output directory, and filtering preferences. If interactive input is unavailable, stop and tell the user to run `python3 scripts/init.py` in a terminal; use `python3 scripts/init.py --yes` only when the user explicitly wants a quick default setup.
+4. If the check warns that guided setup has not been completed, continue only if the technical check passes, but tell the user they can improve source coverage and personalization by running `python3 scripts/init.py`.
+5. If the check still fails after the first-time initialization path, stop the workflow. Report the failed check output and the `[next]` command recommended by `init.py --check`.
+6. Do not install optional external skills or CLIs unless the user explicitly confirms the setup prompt or asks for them.
+7. Read `config.yaml` and `sources.yaml` only after the init check passes.
+8. Expand `~` and environment variables in paths.
+9. Never write private output, raw email caches, tokens, or user-specific config into files intended for publishing.
 
 ## Configuration
 

@@ -24,6 +24,15 @@ except ImportError:
     print("Error: PyYAML not installed. Run: python3 -m pip install -r requirements.txt", file=sys.stderr)
     sys.exit(1)
 
+from init_wizard import (
+    add_enabled_source,
+    input_was_unavailable,
+    mark_setup_step,
+    prompt_yes_no,
+    run_guided_setup,
+    setup_steps,
+)
+
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 SETUP_SCHEMA_VERSION = 1
@@ -100,14 +109,6 @@ def run_command(cmd: list[str], cwd: Optional[Path] = None, dry_run: bool = Fals
     if dry_run:
         return
     subprocess.run(cmd, cwd=str(cwd) if cwd else None, check=True)
-
-
-def prompt_yes_no(question: str, default: bool = False) -> bool:
-    suffix = "Y/n" if default else "y/N"
-    answer = input(f"{question} [{suffix}] ").strip().lower()
-    if not answer:
-        return default
-    return answer in {"y", "yes", "是", "好"}
 
 
 def ensure_directory(path: Path, dry_run: bool = False) -> None:
@@ -252,7 +253,7 @@ def parse_skill_list(value: Optional[str]) -> list[str]:
     return names
 
 
-def choose_external_skills(args) -> list[str]:
+def choose_external_skills(args, guided_setup: bool = False) -> list[str]:
     explicit = parse_skill_list(args.skills)
     if explicit:
         return explicit
@@ -263,8 +264,10 @@ def choose_external_skills(args) -> list[str]:
 
     selected = []
     print("\nOptional external skills:")
+    if guided_setup:
+        print("Recommended: install these integrations for broader AI, builder, blog, and RSS coverage.")
     for name, meta in EXTERNAL_SKILLS.items():
-        if prompt_yes_no(f"Install and enable {meta['label']}? {meta['description']}", default=False):
+        if prompt_yes_no(f"Install and enable {meta['label']}? {meta['description']}", default=guided_setup):
             selected.append(name)
     return selected
 
@@ -300,18 +303,22 @@ def create_local_configs(force: bool = False, dry_run: bool = False) -> None:
 
 
 def update_pipeline(config: dict, selected: list[str]) -> None:
-    pipeline = config.setdefault("pipeline", {})
-    enabled_sources = pipeline.setdefault("enabled_sources", ["rss", "websites"])
-    if selected and "external_skills" not in enabled_sources:
-        enabled_sources.append("external_skills")
+    if selected:
+        add_enabled_source(config, "external_skills")
 
 
-def update_setup_state(config: dict, selected: list[str]) -> None:
+def update_setup_state(config: dict, selected: list[str], guided_setup_completed: bool = False) -> None:
     setup = config.setdefault("setup", {})
     setup["initialized"] = True
     setup["init_schema_version"] = SETUP_SCHEMA_VERSION
     setup["initialized_at"] = datetime.now(timezone.utc).isoformat()
-    setup["selected_external_skills"] = selected
+    if selected or "selected_external_skills" not in setup:
+        setup["selected_external_skills"] = selected
+    if guided_setup_completed:
+        setup["guided_setup_completed"] = True
+    else:
+        setup.setdefault("guided_setup_completed", False)
+    setup_steps(config)
 
 
 def configure_external_skills(config: dict, selected: list[str], install_dir: Path, link_targets: list[Path], dry_run: bool = False) -> None:
@@ -356,6 +363,14 @@ def check_config() -> int:
         first_time_setup = True
         errors.append("setup.initialized is not true. Run: python3 scripts/init.py")
         add_init_recommendations(recommendations, first_time=True)
+    elif setup.get("guided_setup_completed") is not True:
+        warnings.append("guided setup has not been completed; run: python3 scripts/init.py to choose integrations, newsletters, output directory, and preferences")
+        recommendations.append("Complete guided setup: python3 scripts/init.py")
+    elif setup.get("guided_setup_completed") is True:
+        incomplete_steps = [step for step, done in setup_steps(config).items() if not done]
+        if incomplete_steps:
+            warnings.append(f"guided setup has incomplete step(s): {', '.join(incomplete_steps)}")
+            recommendations.append("Complete guided setup: python3 scripts/init.py")
     if int(setup.get("init_schema_version") or 0) < SETUP_SCHEMA_VERSION:
         errors.append(f"setup.init_schema_version is outdated. Run: python3 scripts/init.py --force or migrate config.yaml")
         add_init_recommendations(recommendations)
@@ -486,8 +501,8 @@ def check_external(errors: list[str], warnings: list[str], recommendations: list
 
 def add_init_recommendations(recommendations: list[str], first_time: bool = False) -> None:
     if first_time:
-        recommendations.append("First-time setup: python3 scripts/init.py --yes")
-        recommendations.append("Interactive setup with optional sources: python3 scripts/init.py")
+        recommendations.append("First-time guided setup: python3 scripts/init.py")
+        recommendations.append("Quick default setup: python3 scripts/init.py --yes")
         return
     recommendations.append("Interactive setup: python3 scripts/init.py")
     recommendations.append("Minimal non-interactive setup: python3 scripts/init.py --yes")
@@ -512,7 +527,8 @@ def print_check_result(
 ) -> int:
     if first_time_setup and errors:
         print("[info] first-time setup detected: local initialization has not completed")
-        print("[info] safe default initialization: python3 scripts/init.py --yes")
+        print("[info] guided initialization: python3 scripts/init.py")
+        print("[info] quick default initialization: python3 scripts/init.py --yes")
     for warning in warnings:
         print(f"[warn] {warning}")
     for error in errors:
@@ -545,6 +561,7 @@ def main() -> int:
     if args.check:
         return check_config()
 
+    guided_setup = not (args.yes or args.install_external_skills or args.skills)
     config_path = SKILL_ROOT / "config.yaml"
     sources_path = SKILL_ROOT / "sources.yaml"
     existing_config = config_path.exists()
@@ -553,6 +570,8 @@ def main() -> int:
     print(f"ai-news-keji init: {SKILL_ROOT}")
     if not existing_config or not existing_sources:
         print("[info] first-time setup detected; creating local config files and runtime directories")
+    if guided_setup:
+        print("[info] starting guided setup")
 
     if not command_exists("git"):
         print("[warn] git is not installed; git-based external skills cannot be installed")
@@ -561,7 +580,9 @@ def main() -> int:
     config = load_yaml(config_path if config_path.exists() else SKILL_ROOT / "config.example.yaml")
     if existing_config and (config.get("setup") or {}).get("initialized") is not True:
         print("[info] local setup is incomplete; completing initialization state")
-    selected = choose_external_skills(args)
+    selected = choose_external_skills(args, guided_setup=guided_setup)
+    if guided_setup:
+        mark_setup_step(config, "external_skills_prompted")
     install_dir = expand_path(args.install_dir)
     link_targets = choose_link_targets(args, selected)
 
@@ -575,7 +596,15 @@ def main() -> int:
         external_config.setdefault("link_targets", [str(path) for path in link_targets])
         print("[ok] no optional external skills selected")
 
-    update_setup_state(config, selected)
+    if guided_setup:
+        guided_setup_completed = run_guided_setup(config, SKILL_ROOT, dry_run=args.dry_run)
+    else:
+        guided_setup_completed = False
+
+    if guided_setup and input_was_unavailable():
+        print("[warn] guided setup could not collect interactive input completely; run python3 scripts/init.py in a terminal")
+
+    update_setup_state(config, selected, guided_setup_completed=guided_setup_completed)
     create_runtime_dirs(config, dry_run=args.dry_run)
 
     if args.dry_run:

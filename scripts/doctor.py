@@ -33,6 +33,7 @@ PUBLIC_FILES = (
     "sources.example.yaml",
     "requirements.txt",
     "scripts/init.py",
+    "scripts/init_wizard.py",
     "scripts/fetch-email-imap.py",
     "scripts/fetch-rss.py",
     "scripts/doctor.py",
