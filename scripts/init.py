@@ -148,6 +148,23 @@ def path_writable(path: Path) -> bool:
         return False
 
 
+def detect_installed_external_skills(install_dir: Path) -> dict[str, bool]:
+    return {name: external_skill_installed(name, install_dir) for name in EXTERNAL_SKILLS}
+
+
+def external_skill_installed(name: str, install_dir: Path) -> bool:
+    install_dir = expand_path(str(install_dir))
+    if name == "follow-builders":
+        return (install_dir / "follow-builders" / ".git").exists()
+    if name == "bestblogs":
+        return command_exists("bestblogs")
+    if name == "ak-rss-digest":
+        repo_path = install_dir / "erduo-skills"
+        link_path = install_dir / "ak-rss-digest"
+        return (repo_path / ".git").exists() and link_path.exists()
+    return False
+
+
 def clone_or_update(repo: str, path: Path, dry_run: bool = False) -> None:
     if path.exists():
         if (path / ".git").exists():
@@ -174,15 +191,19 @@ def symlink_force(source: Path, target: Path, dry_run: bool = False) -> None:
 def install_follow_builders(install_dir: Path, link_targets: list[Path], dry_run: bool = False) -> dict:
     meta = EXTERNAL_SKILLS["follow-builders"]
     install_path = install_dir / meta["clone_dir"]
-    clone_or_update(meta["repo"], install_path, dry_run=dry_run)
-
     scripts_dir = install_path / "scripts"
-    if command_exists("npm"):
-        run_command(["npm", "install"], cwd=scripts_dir, dry_run=dry_run)
-    else:
-        print("[warn] 未安装 npm；未安装 follow-builders 依赖")
-
     link_name = meta["link_name"]
+    already_installed = (install_path / ".git").exists()
+
+    if already_installed:
+        print(f"[ok] follow-builders 本条已安装：{install_path}，跳过 clone / npm install")
+    else:
+        clone_or_update(meta["repo"], install_path, dry_run=dry_run)
+        if command_exists("npm"):
+            run_command(["npm", "install"], cwd=scripts_dir, dry_run=dry_run)
+        else:
+            print("[warn] 未安装 npm；未安装 follow-builders 依赖")
+
     link_skill_to_targets(install_path, link_name, link_targets, dry_run=dry_run)
 
     return {
@@ -198,15 +219,18 @@ def install_follow_builders(install_dir: Path, link_targets: list[Path], dry_run
 def install_bestblogs(dry_run: bool = False) -> dict:
     meta = EXTERNAL_SKILLS["bestblogs"]
 
-    if command_exists("npm"):
-        run_command(["npm", "install", "-g", "@bestblogs/cli"], dry_run=dry_run)
+    if command_exists("bestblogs"):
+        print("[ok] BestBlogs 本条已安装（检测到 bestblogs 命令），跳过 npm install")
     else:
-        print("[warn] 未安装 npm；未安装 @bestblogs/cli")
+        if command_exists("npm"):
+            run_command(["npm", "install", "-g", "@bestblogs/cli"], dry_run=dry_run)
+        else:
+            print("[warn] 未安装 npm；未安装 @bestblogs/cli")
 
-    if command_exists("npx"):
-        run_command(["npx", "@bestblogs/skills"], dry_run=dry_run)
-    else:
-        print("[warn] 未安装 npx；未安装 BestBlogs agent skills")
+        if command_exists("npx"):
+            run_command(["npx", "@bestblogs/skills"], dry_run=dry_run)
+        else:
+            print("[warn] 未安装 npx；未安装 BestBlogs agent skills")
 
     for step in meta.get("next_steps", []):
         print(f"[next] {step}")
@@ -226,8 +250,11 @@ def install_ak_rss_digest(install_dir: Path, link_targets: list[Path], dry_run: 
     install_path = install_dir / "ak-rss-digest"
     link_name = meta["link_name"]
 
-    clone_or_update(meta["repo"], repo_path, dry_run=dry_run)
-    symlink_force(source_path, install_path, dry_run=dry_run)
+    if (repo_path / ".git").exists() and install_path.exists():
+        print(f"[ok] ak-rss-digest 本条已安装：{install_path}，跳过 clone")
+    else:
+        clone_or_update(meta["repo"], repo_path, dry_run=dry_run)
+        symlink_force(source_path, install_path, dry_run=dry_run)
     link_skill_to_targets(install_path, link_name, link_targets, dry_run=dry_run)
 
     return {
@@ -313,10 +340,15 @@ def choose_external_skills(args, guided_setup: bool = False) -> list[str]:
         return []
 
     selected = []
+    install_dir = expand_path(args.install_dir)
     print("\n可选外部集成：")
     if guided_setup:
         print("建议安装：这些集成可以扩大 AI、builder、博客和 RSS 来源覆盖。")
     for name, meta in EXTERNAL_SKILLS.items():
+        if external_skill_installed(name, install_dir):
+            print(f"- {meta['label']}：本条已安装，自动加入并跳过提问")
+            selected.append(name)
+            continue
         if prompt_yes_no(f"是否安装并启用 {meta['label']}？{meta['description']}", default=guided_setup):
             selected.append(name)
     return selected
@@ -596,7 +628,10 @@ def print_check_result(
             print(f"[next] {recommendation}")
         if should_print_agent_flow:
             print()
-            print_agent_setup_flow(SKILL_ROOT)
+            print_agent_setup_flow(
+                SKILL_ROOT,
+                installed=detect_installed_external_skills(expand_path(DEFAULT_INSTALL_DIR)),
+            )
         return 1
     for recommendation in unique_items(recommendations):
         print(f"[next] 可选：{recommendation}")
@@ -627,13 +662,14 @@ def main() -> int:
         return check_config()
 
     answers = load_answers_file(args.answers_file) if args.answers_file else None
+    installed_status = detect_installed_external_skills(expand_path(args.install_dir))
     if args.yes and not (args.install_external_skills or args.skills or args.answers_file):
-        print_agent_setup_flow(SKILL_ROOT)
+        print_agent_setup_flow(SKILL_ROOT, installed=installed_status)
         return 1
 
     should_show_agent_flow = not (args.answers_file or args.install_external_skills or args.skills)
     if should_show_agent_flow:
-        print_agent_setup_flow(SKILL_ROOT)
+        print_agent_setup_flow(SKILL_ROOT, installed=installed_status)
         return 1
 
     guided_setup = False

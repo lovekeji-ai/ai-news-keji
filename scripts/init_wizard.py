@@ -194,14 +194,79 @@ def print_imap_setup_guide() -> None:
         print(f"- {hint}")
 
 
-def print_agent_setup_flow(skill_root: Path) -> None:
+def print_agent_setup_flow(skill_root: Path, installed: dict[str, bool] | None = None) -> None:
+    installed = installed or {}
+    labels = {
+        "follow-builders": "follow-builders",
+        "bestblogs": "BestBlogs",
+        "ak-rss-digest": "ak-rss-digest",
+    }
+    status_parts = []
+    pending = []
+    for key, label in labels.items():
+        if installed.get(key):
+            status_parts.append(f"{label}（本条已安装）")
+        else:
+            status_parts.append(label)
+            pending.append(label)
+    status_line = "、".join(status_parts)
+
+    if pending:
+        suggestion = f"建议安装尚未安装的集成：{('、'.join(pending))}。"
+    else:
+        suggestion = "三个集成均已安装，本步会自动复用现有安装。"
+
+    options_lines = []
+    for key, label in labels.items():
+        suffix = "（本条已安装）" if installed.get(key) else ""
+        options_lines.append(f"  - {label}{suffix}")
+    options_lines.append("  - 暂不安装")
+
     print("[info] 进入 ai-news-keji Agent 分步初始化")
     print("[info] 给用户的下一条消息只推进第 1 步；用户回答后再进入下一步。")
-    print("\n建议开场：")
-    print("检测到 ai-news-keji 还没有完成初始化。我会一步步带你完成配置：先选择外部集成，然后设置 Newsletter/IMAP，接着确认输出目录，最后填写个人偏好。我们先从第 1 步开始。")
-    print("\n第 1 步问题：")
-    print("这一步是决定是否接入额外信息源，用来扩大 AI builder、技术博客和 RSS 覆盖。建议安装 follow-builders、BestBlogs、ak-rss-digest 全部三个。你想全部安装、只安装其中一部分，还是暂不安装？")
-    print("\n用户回答第 1 步后，再根据 SKILL.md 的分步流程推进下一步。全部答案收集完成后，Agent 保存 JSON 并运行：")
+    print("[info] 每一步都必须用 AskUserQuestion 工具弹选项卡，不要用普通对话让用户手敲答案。")
+    print("\n建议开场（普通文字消息）：")
+    print("检测到 ai-news-keji 还没有完成初始化。我会一步步带你完成配置：先选择外部集成，然后设置 Newsletter/IMAP，接着确认输出目录，最后填写个人偏好。下面进入第 1 步。")
+    print("\n第 1 步：必须调用 AskUserQuestion 工具")
+    print("  question: 选择要接入的外部集成（可多选）")
+    print("  multiSelect: true")
+    print("  说明：这一步决定是否接入额外信息源，用来扩大 AI builder、技术博客和 RSS 覆盖。")
+    if pending:
+        print(f"  推荐：{('、'.join(pending))} 尚未安装，建议勾选。")
+    else:
+        print("  推荐：三个集成均已安装，本步会自动复用现有安装。")
+    print("  options（已安装的项 label 必须带“（本条已安装）”后缀）：")
+    for line in options_lines:
+        print(line)
+    print("\n第 2 步：必须调用 AskUserQuestion 工具")
+    print("  question: 是否接入邮件 Newsletter 来源？")
+    print("  multiSelect: false")
+    print("  options:")
+    print("  - imap（现在配置 IMAP 接入）")
+    print("  - later（先跳过，稍后再配）")
+    print("  - no（不接入邮件来源）")
+    print("  说明前先读取 sources.yaml 或 sources.example.yaml，列出 Newsletter 名称、发件人和订阅链接。")
+    print("\n第 2.1 步（仅当第 2 步选 imap 时）：调用一次 AskUserQuestion，包含 4 个子问题")
+    print("  - IMAP host：默认 imap.gmail.com，预设 imap.qq.com / imap.163.com / outlook.office365.com，其他可自定义")
+    print("  - IMAP folder：默认 INBOX")
+    print("  - 账号环境变量名：默认 AI_NEWS_IMAP_USERNAME")
+    print("  - 密码/授权码环境变量名：默认 AI_NEWS_IMAP_PASSWORD")
+    print("  说明：账号和密码只通过环境变量提供，不写入 config.yaml。")
+    print("\n第 3 步：必须调用 AskUserQuestion 工具")
+    print("  question: 日报 Markdown 写入哪个目录？")
+    print("  options:")
+    print("  - ~/ai-news-keji/output（默认）")
+    print("  - ~/Documents/ai-news-keji")
+    print("  其他路径请用 “其他” 填写。")
+    print("\n第 4 步：必须调用 AskUserQuestion 工具")
+    print("  question: 选择一个起始画像，或用“其他”输入完整偏好描述")
+    print("  options:")
+    print("  - 工程 + AI 产品方向")
+    print("  - 研究 + 论文方向")
+    print("  - 创业 + 投资方向")
+    print("  - 暂不填写，使用默认")
+    print("  说明：这一步会影响评分、排序和摘要重点。")
+    print("\n全部答案收集完成后，Agent 保存 JSON 并运行：")
     print("python3 scripts/init.py --answers-file /path/to/ai-news-keji-init-answers.json")
     print("内部 JSON 字段：external_skills、newsletter、output_dir、preferences。")
 
