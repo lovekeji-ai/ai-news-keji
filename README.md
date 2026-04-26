@@ -82,12 +82,12 @@ python3 -m venv .venv
 chmod +x scripts/*.py
 ```
 
-首次使用由 Agent 在当前对话里完成配置。Agent 触发 `/ai-news-keji` 后会先运行初始化检查；如果发现还没有初始化，就说明接下来会一步步完成配置。每一步都会先解释这一步的作用，再引导用户做选择或填写内容：
+首次使用由 Agent 在当前对话里完成配置。Agent 触发 `/ai-news-keji` 后会先运行初始化检查；如果发现还没有初始化，就说明接下来会一步步完成配置。每一步都会先解释这一步的作用，**然后用 `AskUserQuestion` 弹出选项卡让你点选**（不需要手敲文字回答），每个步骤的选项里都允许用"其他"自定义：
 
-- 第 1 步选择是否安装三个集成化 Skill / CLI：`follow-builders`、`BestBlogs`、`ak-rss-digest`
-- 第 2 步展示 Newsletter 订阅源清单，并询问是否接入 IMAP、稍后配置或不接入
+- 第 1 步选择是否安装三个集成化 Skill / CLI：`follow-builders`、`BestBlogs`、`ak-rss-digest`。脚本会检测本机是否已经安装过对应 skill；已安装的项 label 会自动追加"（本条已安装）"，安装时也会跳过重复 clone / npm install
+- 第 2 步展示 Newsletter 订阅源清单，并询问是否接入 IMAP、稍后配置或不接入；选 IMAP 时会再用一次 `AskUserQuestion` 收集 host / folder / 账号环境变量名 / 密码环境变量名
 - 第 3 步确认默认输出目录
-- 第 4 步输入个人偏好，用于生成本地 `filter_rules`；跳过时使用内置默认筛选逻辑
+- 第 4 步选择起始画像（或用"其他"输入完整偏好），用于生成本地 `filter_rules`；跳过时使用内置默认筛选逻辑
 
 Agent 收集完答案后，会把答案写入临时 JSON，并调用：
 
@@ -116,6 +116,25 @@ Agent 收集完答案后，会把答案写入临时 JSON，并调用：
 ```bash
 .venv/bin/python scripts/init.py --install-external-skills
 ```
+
+### 事后重做某一步
+
+如果一开始跳过了 Newsletter，或者想换输出目录、改个人偏好、增删外部集成，可以单独重跑那一步，不用从头再来：
+
+```bash
+.venv/bin/python scripts/init.py --reconfigure newsletter
+.venv/bin/python scripts/init.py --reconfigure external_skills
+.venv/bin/python scripts/init.py --reconfigure output_dir
+.venv/bin/python scripts/init.py --reconfigure preferences
+```
+
+执行上面的命令会打印该步骤的 `AskUserQuestion` 指令，Agent 收集到答案后再运行：
+
+```bash
+.venv/bin/python scripts/init.py --answers-file <answers.json> --reconfigure <section>
+```
+
+JSON 只需包含本次重配置的字段，其他配置保持不变。在 Agent 对话里直接说"重新配置 Newsletter / 改输出目录 / 改个人偏好 / 重新选外部集成"也会触发同一流程。
 
 ## 注册为 Skill
 
