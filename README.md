@@ -88,7 +88,13 @@ chmod +x scripts/*.py
 .venv/bin/python scripts/init.py --check
 ```
 
-当这个 Skill 被 Agent 调用来生成日报时，工作流第一步也会执行同一个校验。校验失败时不会继续抓取新闻，而是提示用户先完成初始化。
+当这个 Skill 被 Agent 调用来生成日报时，工作流第一步也会执行同一个校验。如果检测到是首次启动、缺少本地配置，Agent 会先提示“检测到 ai-news-keji 还没有完成初始化，开始进行初始化。”，然后运行一次安全的默认初始化：
+
+```bash
+python3 scripts/init.py --yes
+```
+
+其他校验失败时不会继续抓取新闻，而是提示用户按输出里的 `[next]` 命令处理。
 
 非交互默认初始化：
 

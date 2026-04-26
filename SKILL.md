@@ -24,10 +24,13 @@ Resolve all files relative to the skill directory, which is the directory contai
 Before running the workflow:
 
 1. Run `python3 scripts/init.py --check` from the skill directory.
-2. If the check fails, stop the workflow. Report the failed check output and the `[next]` command recommended by `init.py --check`.
-3. Read `config.yaml` and `sources.yaml` only after the init check passes.
-4. Expand `~` and environment variables in paths.
-5. Never write private output, raw email caches, tokens, or user-specific config into files intended for publishing.
+2. If the check fails because PyYAML is missing, run `python3 -m pip install -r requirements.txt`, then retry the check once.
+3. If the check reports first-time setup, missing `config.yaml`, missing `sources.yaml`, or `setup.initialized is not true`, tell the user: `检测到 ai-news-keji 还没有完成初始化，开始进行初始化。` Then run `python3 scripts/init.py --yes` to create the baseline local config without installing optional external skills, and retry `python3 scripts/init.py --check`.
+4. If the check still fails after the first-time initialization path, stop the workflow. Report the failed check output and the `[next]` command recommended by `init.py --check`.
+5. Do not install optional external skills or CLIs unless the user explicitly asks for them.
+6. Read `config.yaml` and `sources.yaml` only after the init check passes.
+7. Expand `~` and environment variables in paths.
+8. Never write private output, raw email caches, tokens, or user-specific config into files intended for publishing.
 
 ## Configuration
 

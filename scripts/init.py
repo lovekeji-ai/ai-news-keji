@@ -336,22 +336,26 @@ def check_config() -> int:
     errors: list[str] = []
     warnings: list[str] = []
     recommendations: list[str] = []
+    first_time_setup = False
     config_path = SKILL_ROOT / "config.yaml"
     sources_path = SKILL_ROOT / "sources.yaml"
 
     if not config_path.exists():
+        first_time_setup = True
         errors.append("config.yaml is missing. Run: python3 scripts/init.py")
-        add_init_recommendations(recommendations)
-        return print_check_result(errors, warnings, recommendations)
+        add_init_recommendations(recommendations, first_time=True)
+        return print_check_result(errors, warnings, recommendations, first_time_setup=first_time_setup)
     if not sources_path.exists():
+        first_time_setup = True
         errors.append("sources.yaml is missing. Run: python3 scripts/init.py")
-        add_init_recommendations(recommendations)
+        add_init_recommendations(recommendations, first_time=True)
 
     config = load_yaml(config_path)
     setup = config.get("setup") or {}
     if setup.get("initialized") is not True:
+        first_time_setup = True
         errors.append("setup.initialized is not true. Run: python3 scripts/init.py")
-        add_init_recommendations(recommendations)
+        add_init_recommendations(recommendations, first_time=True)
     if int(setup.get("init_schema_version") or 0) < SETUP_SCHEMA_VERSION:
         errors.append(f"setup.init_schema_version is outdated. Run: python3 scripts/init.py --force or migrate config.yaml")
         add_init_recommendations(recommendations)
@@ -378,41 +382,52 @@ def check_config() -> int:
     check_email(errors, warnings, config, enabled_sources)
     check_external(errors, warnings, recommendations, config, enabled_sources)
 
-    return print_check_result(errors, warnings, recommendations)
+    return print_check_result(errors, warnings, recommendations, first_time_setup=first_time_setup)
 
 
 def check_email(errors: list[str], warnings: list[str], config: dict, enabled_sources: list[str]) -> None:
     if "email" not in enabled_sources:
         return
 
+    pipeline = config.get("pipeline") or {}
+    skip_unavailable = bool(pipeline.get("skip_unavailable_sources"))
     email_config = config.get("email") or {}
     mode = email_config.get("mode", "none")
+
+    def report_email_problem(message: str) -> None:
+        if skip_unavailable:
+            warnings.append(f"{message}; source will be skipped because pipeline.skip_unavailable_sources is true")
+        else:
+            errors.append(message)
+
     if mode == "none":
-        errors.append("email source is enabled but email.mode is none")
+        report_email_problem("email source is enabled but email.mode is none")
         return
     if mode == "mcp":
         warnings.append("email.mode is mcp; make sure the current Agent runtime provides an email/Gmail MCP tool")
         return
     if mode != "imap":
-        errors.append(f"unsupported email.mode: {mode}")
+        report_email_problem(f"unsupported email.mode: {mode}")
         return
 
     imap_config = email_config.get("imap") or {}
     if not imap_config.get("host"):
-        errors.append("email.imap.host is missing")
+        report_email_problem("email.imap.host is missing")
 
     username_env = imap_config.get("username_env") or "AI_NEWS_IMAP_USERNAME"
     password_env = imap_config.get("password_env") or "AI_NEWS_IMAP_PASSWORD"
     if not os.environ.get(username_env):
-        errors.append(f"IMAP username env is missing: {username_env}")
+        report_email_problem(f"IMAP username env is missing: {username_env}")
     if not os.environ.get(password_env):
-        errors.append(f"IMAP password env is missing: {password_env}")
+        report_email_problem(f"IMAP password env is missing: {password_env}")
 
 
 def check_external(errors: list[str], warnings: list[str], recommendations: list[str], config: dict, enabled_sources: list[str]) -> None:
     if "external_skills" not in enabled_sources:
         return
 
+    pipeline = config.get("pipeline") or {}
+    skip_unavailable = bool(pipeline.get("skip_unavailable_sources"))
     external_config = config.get("external_skills") or {}
     enabled_items = {
         name: item
@@ -420,9 +435,20 @@ def check_external(errors: list[str], warnings: list[str], recommendations: list
         if isinstance(item, dict) and item.get("enabled")
     }
     if not enabled_items:
-        errors.append("external_skills source is enabled but no external skill entry is enabled")
+        message = "external_skills source is enabled but no external skill entry is enabled"
+        if skip_unavailable:
+            warnings.append(f"{message}; source group will be skipped because pipeline.skip_unavailable_sources is true")
+        else:
+            errors.append(message)
         recommendations.append("Disable external_skills in config.yaml or run: python3 scripts/init.py --skills follow-builders,bestblogs,ak-rss-digest")
         return
+
+    def report_external_problem(message: str, recommendation: str) -> None:
+        if skip_unavailable:
+            warnings.append(f"{message}; source will be skipped because pipeline.skip_unavailable_sources is true")
+        else:
+            errors.append(message)
+        recommendations.append(recommendation)
 
     install_dir = external_config.get("install_dir")
     if install_dir and not expand_path(str(install_dir)).exists():
@@ -431,26 +457,38 @@ def check_external(errors: list[str], warnings: list[str], recommendations: list
     for name, item in enabled_items.items():
         command = item.get("command")
         if not command:
-            errors.append(f"external skill {name} is enabled but command is missing")
-            recommendations.append(f"Reconfigure {name}: python3 scripts/init.py --skills {name}")
+            report_external_problem(
+                f"external skill {name} is enabled but command is missing",
+                f"Reconfigure {name}: python3 scripts/init.py --skills {name}",
+            )
 
         if name == "bestblogs":
             if not command_exists("bestblogs"):
-                errors.append("bestblogs is enabled but the bestblogs command is not available")
-                recommendations.append("Install BestBlogs CLI: python3 scripts/init.py --skills bestblogs")
+                report_external_problem(
+                    "bestblogs is enabled but the bestblogs command is not available",
+                    "Install BestBlogs CLI: python3 scripts/init.py --skills bestblogs",
+                )
             continue
 
         install_path = item.get("install_path")
         if not install_path:
-            errors.append(f"external skill {name} is enabled but install_path is missing")
-            recommendations.append(f"Install {name}: python3 scripts/init.py --skills {name}")
+            report_external_problem(
+                f"external skill {name} is enabled but install_path is missing",
+                f"Install {name}: python3 scripts/init.py --skills {name}",
+            )
             continue
         if not expand_path(str(install_path)).exists():
-            errors.append(f"external skill {name} install_path is missing: {expand_path(str(install_path))}")
-            recommendations.append(f"Install {name}: python3 scripts/init.py --skills {name}")
+            report_external_problem(
+                f"external skill {name} install_path is missing: {expand_path(str(install_path))}",
+                f"Install {name}: python3 scripts/init.py --skills {name}",
+            )
 
 
-def add_init_recommendations(recommendations: list[str]) -> None:
+def add_init_recommendations(recommendations: list[str], first_time: bool = False) -> None:
+    if first_time:
+        recommendations.append("First-time setup: python3 scripts/init.py --yes")
+        recommendations.append("Interactive setup with optional sources: python3 scripts/init.py")
+        return
     recommendations.append("Interactive setup: python3 scripts/init.py")
     recommendations.append("Minimal non-interactive setup: python3 scripts/init.py --yes")
 
@@ -466,7 +504,15 @@ def unique_items(items: list[str]) -> list[str]:
     return result
 
 
-def print_check_result(errors: list[str], warnings: list[str], recommendations: list[str]) -> int:
+def print_check_result(
+    errors: list[str],
+    warnings: list[str],
+    recommendations: list[str],
+    first_time_setup: bool = False,
+) -> int:
+    if first_time_setup and errors:
+        print("[info] first-time setup detected: local initialization has not completed")
+        print("[info] safe default initialization: python3 scripts/init.py --yes")
     for warning in warnings:
         print(f"[warn] {warning}")
     for error in errors:
@@ -476,6 +522,8 @@ def print_check_result(errors: list[str], warnings: list[str], recommendations: 
         for recommendation in unique_items(recommendations) or ["Run: python3 scripts/init.py"]:
             print(f"[next] {recommendation}")
         return 1
+    for recommendation in unique_items(recommendations):
+        print(f"[next] Optional: {recommendation}")
     print("[ok] init check passed")
     return 0
 
@@ -497,14 +545,22 @@ def main() -> int:
     if args.check:
         return check_config()
 
+    config_path = SKILL_ROOT / "config.yaml"
+    sources_path = SKILL_ROOT / "sources.yaml"
+    existing_config = config_path.exists()
+    existing_sources = sources_path.exists()
+
     print(f"ai-news-keji init: {SKILL_ROOT}")
+    if not existing_config or not existing_sources:
+        print("[info] first-time setup detected; creating local config files and runtime directories")
 
     if not command_exists("git"):
         print("[warn] git is not installed; git-based external skills cannot be installed")
 
     create_local_configs(force=args.force, dry_run=args.dry_run)
-    config_path = SKILL_ROOT / "config.yaml"
     config = load_yaml(config_path if config_path.exists() else SKILL_ROOT / "config.example.yaml")
+    if existing_config and (config.get("setup") or {}).get("initialized") is not True:
+        print("[info] local setup is incomplete; completing initialization state")
     selected = choose_external_skills(args)
     install_dir = expand_path(args.install_dir)
     link_targets = choose_link_targets(args, selected)
