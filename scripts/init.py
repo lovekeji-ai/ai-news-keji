@@ -27,10 +27,19 @@ except ImportError:
 from init_wizard import (
     add_enabled_source,
     apply_guided_answers,
+    apply_newsletter_answer,
+    apply_output_dir_answer,
+    apply_preferences_answer,
+    mark_setup_step,
+    remove_enabled_source,
     print_agent_setup_flow,
+    print_reconfigure_flow,
     prompt_yes_no,
     setup_steps,
 )
+
+
+RECONFIGURE_SECTIONS = ("external_skills", "newsletter", "output_dir", "preferences")
 
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
@@ -639,6 +648,54 @@ def print_check_result(
     return 0
 
 
+def run_reconfigure(args, answers: Optional[dict], installed_status: dict[str, bool]) -> int:
+    section = args.reconfigure
+    config_path = SKILL_ROOT / "config.yaml"
+
+    if answers is None:
+        if not config_path.exists():
+            print("[error] config.yaml 不存在；请先完成首次初始化，再使用 --reconfigure")
+            return 1
+        print_reconfigure_flow(section, SKILL_ROOT, installed=installed_status)
+        return 1
+
+    if not config_path.exists():
+        print("[error] config.yaml 不存在；--reconfigure 需要在已初始化的项目里执行")
+        return 1
+
+    config = load_yaml(config_path)
+    install_dir = expand_path(args.install_dir)
+
+    if section == "external_skills":
+        selected = parse_answer_skill_list(answers.get("external_skills"))
+        link_targets = choose_link_targets(args, selected)
+        if selected:
+            ensure_directory(install_dir, dry_run=args.dry_run)
+            configure_external_skills(config, selected, install_dir, link_targets, dry_run=args.dry_run)
+            update_pipeline(config, selected)
+        else:
+            remove_enabled_source(config, "external_skills")
+            print("[ok] 已关闭外部 skills 来源；现有 external_skills.* 条目保留，可手动删除")
+        config.setdefault("setup", {})["selected_external_skills"] = selected
+        mark_setup_step(config, "external_skills_prompted")
+    elif section == "newsletter":
+        apply_newsletter_answer(config, answers.get("newsletter", "later"))
+    elif section == "output_dir":
+        apply_output_dir_answer(config, answers.get("output_dir"))
+        create_runtime_dirs(config, dry_run=args.dry_run)
+    elif section == "preferences":
+        apply_preferences_answer(config, SKILL_ROOT, answers.get("preferences", ""), dry_run=args.dry_run)
+
+    if args.dry_run:
+        print(f"[ok] dry run 完成；未更新 config.yaml（section={section}）")
+        return 0
+
+    write_yaml(config_path, config)
+    print(f"[ok] 已更新 config.yaml（section={section}）")
+    print("[next] 请运行：python3 scripts/init.py --check")
+    return 0
+
+
 def main() -> int:
     parser = ChineseArgumentParser(
         description="初始化 ai-news-keji 本地配置和可选外部集成",
@@ -656,6 +713,12 @@ def main() -> int:
     parser.add_argument("--skill-dir", default=None, help="已弃用；请改用 --link-target")
     parser.add_argument("--install-external-skills", action="store_true", help="安装并启用所有可选外部 skills")
     parser.add_argument("--skills", default=None, help="要安装的外部 skills，逗号分隔：follow-builders,bestblogs,ak-rss-digest")
+    parser.add_argument(
+        "--reconfigure",
+        choices=RECONFIGURE_SECTIONS,
+        default=None,
+        help="只重新配置某一步：external_skills / newsletter / output_dir / preferences",
+    )
     args = parser.parse_args()
 
     if args.check:
@@ -663,6 +726,9 @@ def main() -> int:
 
     answers = load_answers_file(args.answers_file) if args.answers_file else None
     installed_status = detect_installed_external_skills(expand_path(args.install_dir))
+
+    if args.reconfigure:
+        return run_reconfigure(args, answers, installed_status)
     if args.yes and not (args.install_external_skills or args.skills or args.answers_file):
         print_agent_setup_flow(SKILL_ROOT, installed=installed_status)
         return 1
