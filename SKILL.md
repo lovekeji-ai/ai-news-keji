@@ -1,156 +1,163 @@
 ---
 name: ai-news-keji
-description: Generate an AI/technology daily news digest from configured newsletters, RSS feeds, optional external sources, and web sources. Use when the user asks to generate, refresh, or summarize an AI news daily report, including requests like "生成日报", "AI日报", "今日新闻", "刷新日报", "fetch news", or "/ai-news-keji".
+description: 生成 AI/科技新闻日报：从已配置的 Newsletter、RSS、可选外部来源和网站来源抓取、去重、评分并生成 Markdown。用户说“生成日报”、“AI日报”、“今日新闻”、“刷新日报”、“fetch news” 或 “/ai-news-keji” 时使用。
 ---
 
-# AI News Daily
+# AI 科技新闻日报
 
-Generate an Obsidian-friendly daily AI/technology news raw note and summary note from user-configured sources.
+从用户配置的信息源生成适合 Obsidian 使用的 AI/科技新闻原始稿和摘要稿。
 
-## Paths
+## 交互语言
 
-Resolve all files relative to the skill directory, which is the directory containing this `SKILL.md`.
+所有面向用户的说明、进度更新、错误解释和最终回复都必须使用中文。命令、文件名、配置键、环境变量、URL、产品名和 Newsletter 名称保持原样。
 
-- Local config: `config.yaml`
-- Public config template: `config.example.yaml`
-- Local sources: `sources.yaml`
-- Public sources template: `sources.example.yaml`
-- Initializer: `scripts/init.py`
-- Initializer wizard: `scripts/init_wizard.py`
-- Summary template: `prompts/summary-template.md`
-- Health check: `scripts/doctor.py`
-- RSS fetcher: `scripts/fetch-rss.py`
-- IMAP email fetcher: `scripts/fetch-email-imap.py`
+启动工作流时不要用英文开场，例如不要说 “I'll start...”。应使用类似“我先检查 ai-news-keji 的初始化状态。”这样的中文说明。
 
-Before running the workflow:
+## 路径
 
-1. Run `python3 scripts/init.py --check` from the skill directory.
-2. If the check fails because PyYAML is missing, run `python3 -m pip install -r requirements.txt`, then retry the check once.
-3. If the check reports first-time setup, missing `config.yaml`, missing `sources.yaml`, or `setup.initialized is not true`, tell the user: `检测到 ai-news-keji 还没有完成初始化，开始进行初始化。` Then run `python3 scripts/init.py` so the user can choose recommended integrations, newsletter setup, output directory, and filtering preferences. If interactive input is unavailable, stop and tell the user to run `python3 scripts/init.py` in a terminal; use `python3 scripts/init.py --yes` only when the user explicitly wants a quick default setup.
-4. If the check warns that guided setup has not been completed, continue only if the technical check passes, but tell the user they can improve source coverage and personalization by running `python3 scripts/init.py`.
-5. If the check still fails after the first-time initialization path, stop the workflow. Report the failed check output and the `[next]` command recommended by `init.py --check`.
-6. Do not install optional external skills or CLIs unless the user explicitly confirms the setup prompt or asks for them.
-7. Read `config.yaml` and `sources.yaml` only after the init check passes.
-8. Expand `~` and environment variables in paths.
-9. Never write private output, raw email caches, tokens, or user-specific config into files intended for publishing.
+所有文件都相对于 skill 目录解析，也就是包含 `SKILL.md` 的目录。
 
-## Configuration
+- 本地配置：`config.yaml`
+- 公开配置模板：`config.example.yaml`
+- 本地来源：`sources.yaml`
+- 公开来源模板：`sources.example.yaml`
+- 初始化入口：`scripts/init.py`
+- 初始化向导：`scripts/init_wizard.py`
+- 摘要模板：`prompts/summary-template.md`
+- 健康检查：`scripts/doctor.py`
+- RSS 抓取脚本：`scripts/fetch-rss.py`
+- IMAP 邮件抓取脚本：`scripts/fetch-email-imap.py`
 
-Use `config.yaml` for behavior:
+运行工作流前：
 
-- `paths.output_dir`: directory for raw and summary Markdown files
-- `paths.filter_rules`: scoring and interest-profile rules; use the bundled example if unset or missing
-- `paths.cache_dir`: cache directory for raw source data and rolling dedup state
-- `settings.default_date`: `yesterday` or `today`
-- `settings.retention_days`: cache cleanup window
-- `settings.dedup_window_days`: rolling event dedup window
-- `settings.timezone`: timezone for date filtering
-- `pipeline.enabled_sources`: source groups to attempt, such as `rss`, `email`, `external_skills`, and `websites`
-- `pipeline.skip_unavailable_sources`: skip missing tools or credentials instead of failing
-- `email.mode`: `none`, `imap`, or `mcp`
-- `email.imap.*`: IMAP host, folder, and environment variable names for credentials
-- `external_skills.*`: optional commands; only run entries with `enabled: true`
-- `notification.method`: `none`, `macos`, or another user-configured method
+1. 在 skill 目录运行 `python3 scripts/init.py --check`。
+2. 如果检查因为缺少 PyYAML 失败，运行 `python3 -m pip install -r requirements.txt`，然后重试一次检查。
+3. 如果检查提示首次启动、缺少 `config.yaml`、缺少 `sources.yaml`、`setup.initialized is not true`，或“尚未完成初始化向导”，告诉用户：`检测到 ai-news-keji 还没有完成初始化，先进入初始化向导。` 然后运行 `python3 scripts/init.py`，让用户选择推荐集成、Newsletter 接入、输出目录和筛选偏好。
+4. 如果当前环境无法接收交互式输入，必须停止日报流程，并告诉用户在终端运行 `python3 scripts/init.py`。不要改用 `python3 scripts/init.py --yes`。
+5. `/ai-news-keji` 工作流不得主动运行 `python3 scripts/init.py --yes`。只有当用户明确说“用默认配置初始化”、“跳过向导”或直接要求 `--yes` 时，才可以使用该命令；即便使用了 `--yes`，也不能在初始化向导完成前继续抓取新闻。
+6. 如果首次初始化路径之后检查仍失败，停止流程。用中文报告失败输出，并给出 `init.py --check` 推荐的 `[next]` 命令。
+7. 不要安装可选外部 skills 或 CLI，除非用户在初始化提示里明确确认，或主动要求安装。
+8. 只有初始化检查通过且初始化向导完成后，才读取 `config.yaml` 和 `sources.yaml`。
+9. 解析路径时展开 `~` 和环境变量。
+10. 不要把私有输出、原始邮件缓存、token 或用户专属配置写进准备发布的文件。
 
-Run the health check when setup is uncertain:
+## 配置
+
+使用 `config.yaml` 控制行为：
+
+- `paths.output_dir`：原始稿和摘要 Markdown 的写入目录
+- `paths.filter_rules`：评分规则和兴趣画像；未设置或文件缺失时使用内置示例
+- `paths.cache_dir`：原始来源数据和滚动去重状态的缓存目录
+- `settings.default_date`：`yesterday` 或 `today`
+- `settings.retention_days`：缓存清理窗口
+- `settings.dedup_window_days`：跨天去重窗口
+- `settings.timezone`：日期过滤时区
+- `pipeline.enabled_sources`：要尝试的来源组，例如 `rss`、`email`、`external_skills`、`websites`
+- `pipeline.skip_unavailable_sources`：缺少工具或凭据时跳过对应来源，而不是直接失败
+- `email.mode`：`none`、`imap` 或 `mcp`
+- `email.imap.*`：IMAP host、folder 和凭据环境变量名
+- `external_skills.*`：可选命令；只运行 `enabled: true` 的条目
+- `notification.method`：`none`、`macos` 或其他用户配置方式
+
+配置不确定时，运行健康检查：
 
 ```bash
 python3 scripts/doctor.py
 ```
 
-Run first-time initialization when local config is missing or the user wants optional external skills:
+缺少本地配置，或用户想配置可选外部 skills 时，运行首次初始化：
 
 ```bash
 python3 scripts/init.py
 ```
 
-The workflow must pass this check before fetching sources:
+抓取来源前，工作流必须通过这个检查：
 
 ```bash
 python3 scripts/init.py --check
 ```
 
-## Frequency Rules
+## 频率规则
 
-Each source in `sources.yaml` can include `frequency`:
+`sources.yaml` 里的每个来源都可以包含 `frequency`：
 
 | frequency | rule |
 | --- | --- |
-| `daily` | Check every run. |
-| `weekday` | Skip when the target date is Saturday or Sunday. |
-| `3x_week` | Check every run; no new content is normal. |
-| `weekly` | Skip when the cache shows a successful fetch in the last 7 days. |
-| `irregular` | Check every run; no new content is normal. |
+| `daily` | 每次运行都检查。 |
+| `weekday` | 目标日期是周六或周日时跳过。 |
+| `3x_week` | 每次运行都检查；没有新内容是正常情况。 |
+| `weekly` | 如果缓存显示最近 7 天已成功抓取，则跳过。 |
+| `irregular` | 每次运行都检查；经常没有新内容是正常情况。 |
 
-Skipped sources are not failures and should not produce empty sections.
+被跳过的来源不是失败，也不应该生成空章节。
 
-## Workflow
+## 工作流
 
-Default to the date selected by `settings.default_date`. If the user gives a date, use that date.
+默认使用 `settings.default_date` 选择的日期。如果用户指定了日期，使用用户指定的日期。
 
-### 1. Fetch Sources
+### 1. 抓取来源
 
-Fetch enabled source groups in parallel when tools are available.
+工具可用时，并行抓取已启用的来源组。
 
 **RSS**
 
-Run from the skill directory:
+在 skill 目录运行：
 
 ```bash
 python3 scripts/fetch-rss.py --date YYYY-MM-DD --config sources.yaml
 ```
 
-If `sources.yaml` is missing, the script falls back to `sources.example.yaml`.
+如果缺少 `sources.yaml`，脚本会回退到 `sources.example.yaml`。
 
-**Email newsletters**
+**Email Newsletter**
 
-Use the configured `email` source allowlist only when `email` is enabled in `pipeline.enabled_sources`.
+只有当 `pipeline.enabled_sources` 启用了 `email` 时，才使用已配置的 `email` 来源白名单。
 
-Supported modes:
+支持的模式：
 
-- `none`: skip email sources.
-- `imap`: run the bundled IMAP fetcher. Credentials must come from environment variables named by `email.imap.username_env` and `email.imap.password_env`.
-- `mcp`: use an email/Gmail MCP tool when the current Agent runtime provides one.
+- `none`：跳过邮件来源。
+- `imap`：运行内置 IMAP 抓取脚本。凭据必须来自 `email.imap.username_env` 和 `email.imap.password_env` 指定的环境变量。
+- `mcp`：当当前 Agent 运行环境提供 email/Gmail MCP 工具时使用该工具。
 
-For IMAP, run from the skill directory:
+使用 IMAP 时，在 skill 目录运行：
 
 ```bash
 python3 scripts/fetch-email-imap.py --date YYYY-MM-DD --config config.yaml --sources sources.yaml
 ```
 
-The IMAP fetcher searches the target date, reads messages with `BODY.PEEK[]` so messages are not marked read, filters by the configured sender and optional `subject_contains`, extracts plain text where possible, and prints JSON to stdout.
+IMAP 抓取脚本会搜索目标日期，用 `BODY.PEEK[]` 读取邮件以避免标记为已读，根据配置的发件人和可选 `subject_contains` 过滤邮件，尽可能提取纯文本，并把 JSON 输出到 stdout。
 
-For MCP, search messages for the target date, filter by the configured sender and optional subject rule, read matching messages, and skip welcome emails, subscription confirmations, sponsor-only emails, ads, and hiring posts.
+使用 MCP 时，搜索目标日期的邮件，根据配置的发件人和可选 subject 规则过滤，读取匹配邮件，并跳过欢迎邮件、订阅确认、纯赞助邮件、广告和招聘内容。
 
-If IMAP credentials or MCP tools are unavailable and `pipeline.skip_unavailable_sources` is true, skip email sources and record the source group as unavailable.
+如果 IMAP 凭据或 MCP 工具不可用，且 `pipeline.skip_unavailable_sources` 为 true，则跳过邮件来源，并记录该来源组不可用。
 
-**External skills and CLIs**
+**外部 skills 和 CLI**
 
-For each `external_skills.*` entry with `enabled: true`, run the configured command. Treat missing commands, missing directories, and non-zero exits as source failures unless `pipeline.skip_unavailable_sources` is true, in which case skip and record the reason.
+对每个 `enabled: true` 的 `external_skills.*` 条目，运行其配置的命令。命令缺失、目录缺失或非零退出都视为来源失败；如果 `pipeline.skip_unavailable_sources` 为 true，则跳过并记录原因。
 
-To configure optional external skills, run:
+配置可选外部 skills 时运行：
 
 ```bash
 python3 scripts/init.py
 ```
 
-The initializer installs original external repositories under `external_skills.install_dir` and symlinks selected skills into `external_skills.link_targets`.
+初始化脚本会把原始外部仓库安装到 `external_skills.install_dir` 下，并把选择的 skills 软链到 `external_skills.link_targets`。
 
-It can install and enable:
+它可以安装并启用：
 
-- `follow-builders`: clones `zarazhangrui/follow-builders` into the managed external skill directory, runs `npm install` in its `scripts/` folder, and symlinks the skill into configured agent skill directories.
-- `bestblogs`: installs `@bestblogs/cli` and optionally BestBlogs agent skills with `npx @bestblogs/skills`.
-- `ak-rss-digest`: clones `rookie-ricardo/erduo-skills`, links its `skills/ak-rss-digest` subskill under the managed external skill directory, and symlinks it into configured agent skill directories.
+- `follow-builders`：把 `zarazhangrui/follow-builders` clone 到受管理的外部 skill 目录，在其 `scripts/` 目录运行 `npm install`，并软链到已配置的 agent skill 目录。
+- `bestblogs`：安装 `@bestblogs/cli`，并可通过 `npx @bestblogs/skills` 安装 BestBlogs agent skills。
+- `ak-rss-digest`：clone `rookie-ricardo/erduo-skills`，把其中的 `skills/ak-rss-digest` 子 skill 链接到受管理的外部 skill 目录，并软链到已配置的 agent skill 目录。
 
-**Web sources**
+**网站来源**
 
-For configured website sources such as Readwise Weekly, fetch only when browser/web-fetch capability is available. Use the cache to avoid repeatedly fetching the same weekly issue.
+对 Readwise Weekly 等已配置网站来源，仅在浏览器或 web-fetch 能力可用时抓取。使用缓存避免重复抓取同一期周报。
 
-### 2. Cache Raw Data
+### 2. 缓存原始数据
 
-Write raw source data under `{paths.cache_dir}/YYYY-MM-DD/`.
+把原始来源数据写入 `{paths.cache_dir}/YYYY-MM-DD/`。
 
-Suggested cache files:
+建议缓存文件：
 
 ```text
 email-raw.json
@@ -159,65 +166,65 @@ external-skills.json
 websites.json
 ```
 
-Raw email caches may contain private content. Keep `paths.cache_dir` outside the published skill folder and never commit cache files.
+原始邮件缓存可能包含私人内容。请把 `paths.cache_dir` 放在公开 skill 目录之外，且不要提交缓存文件。
 
-Clean date cache directories older than `settings.retention_days`.
+清理早于 `settings.retention_days` 的日期缓存目录。
 
-### 3. Maintain Rolling Dedup State
+### 3. 维护滚动去重状态
 
-Maintain `{paths.cache_dir}/recent-events.json` with events from the last `settings.dedup_window_days`.
+维护 `{paths.cache_dir}/recent-events.json`，保存最近 `settings.dedup_window_days` 天的事件。
 
-For each fetched item:
+对每个抓取项：
 
-1. Extract the event core: one sentence describing what happened.
-2. Compare it with recent events.
-3. Add new events.
-4. Keep continuation reports only when they add substantial new information.
-5. Drop repeated retellings with no new information.
+1. 提取事件核心：用一句话描述发生了什么。
+2. 与最近事件比较。
+3. 添加新事件。
+4. 只有当延续报道提供实质新信息时才保留。
+5. 删除没有新信息的重复转述。
 
-When a continuation report is kept, mark it as continuation and apply `settings.continuation_penalty` during scoring.
+保留延续报道时，标记为 continuation，并在评分时应用 `settings.continuation_penalty`。
 
-### 4. Write Raw Note
+### 4. 写入原始稿
 
-Write or append `{paths.output_dir}/YYYY-MM-DD.md`.
+写入或追加 `{paths.output_dir}/YYYY-MM-DD.md`。
 
-Raw note requirements:
+原始稿要求：
 
-- YAML frontmatter with `created`, `updated`, `type`, and `sources`
-- one section per source
-- each item includes a bold title, 2-5 useful sentences, and the original link
-- no sponsor, ad, hiring, or subscription-confirmation content
-- long newsletter content should be condensed while preserving concrete facts, numbers, product names, dates, and links
+- YAML frontmatter 包含 `created`、`updated`、`type` 和 `sources`
+- 每个来源一个章节
+- 每个条目包含加粗标题、2-5 句有用摘要和原始链接
+- 不包含赞助、广告、招聘或订阅确认内容
+- 长 Newsletter 内容应压缩摘要，但保留具体事实、数字、产品名、日期和链接
 
-If the file already exists, append newly fetched source sections without deleting previous content.
+如果文件已存在，追加新抓取的来源章节，不删除已有内容。
 
-### 5. Generate Summary
+### 5. 生成摘要
 
-Read `{paths.filter_rules}` when it exists; otherwise use `references/filter-rules.example.md`.
+如果 `{paths.filter_rules}` 存在则读取它，否则使用 `references/filter-rules.example.md`。
 
-Read the full raw note and apply three layers:
+读取完整原始稿，并应用三层处理：
 
-1. Deduplicate and remove noise.
-2. Score each event on both the industry-radar track and the personal-value track.
-3. Fill `prompts/summary-template.md` and write `{paths.output_dir}/YYYY-MM-DD 摘要.md`, overwriting the previous summary for that date.
+1. 去重并移除噪音。
+2. 分别按行业雷达和个人价值两条轨道为每个事件评分。
+3. 填充 `prompts/summary-template.md`，写入 `{paths.output_dir}/YYYY-MM-DD 摘要.md`，覆盖该日期的旧摘要。
 
-Rules:
+规则：
 
-- Do not add explanatory text immediately after section headings.
-- Separate full items with `---`.
-- Expected counts are guides, not quotas: 2-4 industry items, 3-5 personally useful items, 10-15 watch-list items, and 2-3 key signals.
-- Put each event in its best section; avoid duplicating the same event across major sections.
-- Industry importance does not need to match the user's personal interests.
-- Personal usefulness can include small but actionable articles.
+- 不要在章节标题后立刻添加解释性文字。
+- 完整条目之间用 `---` 分隔。
+- 数量是参考而不是硬性配额：2-4 条行业大事、3-5 条对我有用、10-15 条值得关注、2-3 条关键信号。
+- 每个事件放在最适合的章节；避免同一事件在主要章节里重复出现。
+- 行业重要性不必与用户个人兴趣一致。
+- 个人有用可以包括小但可执行的文章。
 
-### 6. Notify
+### 6. 通知
 
-If `notification.method` is `macos`, use `osascript` only on macOS. If notifications are unavailable or set to `none`, finish silently and report the generated file paths to the user.
+如果 `notification.method` 为 `macos`，只在 macOS 上使用 `osascript`。如果通知不可用或设为 `none`，静默结束，并用中文向用户报告生成的文件路径。
 
-## Failure Handling
+## 失败处理
 
-- Skip unavailable optional sources when configured to do so.
-- Record failed sources at the end of the raw note.
-- Continue when one feed is malformed or one optional command fails.
-- Do not guess a person's role from social metadata; use explicit profile or bio fields when present.
-- Treat external scores, such as blog ranking scores, as hints; always apply the configured scoring rules.
+- 配置允许跳过时，跳过不可用的可选来源。
+- 在原始稿末尾记录失败来源。
+- 某个 feed 格式错误或某个可选命令失败时，继续处理其他来源。
+- 不要根据社交元数据猜测人物角色；有明确 profile 或 bio 字段时才使用。
+- 外部评分（例如博客排名分）只作为提示，最终始终应用配置的评分规则。

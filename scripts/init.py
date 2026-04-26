@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-Initialize ai-news-keji for local use.
+初始化 ai-news-keji 的本地运行环境。
 
-This script creates local config files, records setup state, and can install
-optional external skills into a managed directory while symlinking them into
-Claude/Codex skill directories.
+这个脚本会创建本地配置文件、记录初始化状态，并可选择安装外部
+skills 到受管理目录，再软链到 Claude/Codex 的 skill 目录。
 """
 from __future__ import annotations
 
@@ -21,7 +20,7 @@ from typing import Optional
 try:
     import yaml
 except ImportError:
-    print("Error: PyYAML not installed. Run: python3 -m pip install -r requirements.txt", file=sys.stderr)
+    print("错误：未安装 PyYAML。请运行：python3 -m pip install -r requirements.txt", file=sys.stderr)
     sys.exit(1)
 
 from init_wizard import (
@@ -42,7 +41,7 @@ DEFAULT_LINK_TARGETS = ["~/.claude/skills"]
 EXTERNAL_SKILLS = {
     "follow-builders": {
         "label": "follow-builders",
-        "description": "AI builder digest from X, podcasts, and official AI blogs.",
+        "description": "聚合 X、播客和官方 AI 博客里的 AI builder 动态。",
         "repo": "https://github.com/zarazhangrui/follow-builders.git",
         "install_kind": "git-node-skill",
         "clone_dir": "follow-builders",
@@ -50,24 +49,40 @@ EXTERNAL_SKILLS = {
     },
     "bestblogs": {
         "label": "BestBlogs",
-        "description": "BestBlogs CLI and optional agent skills for curated technical reading.",
+        "description": "安装 BestBlogs CLI 和可选 Agent skills，用于精选技术阅读。",
         "repo": "https://github.com/ginobefun/bestblogs",
         "install_kind": "npm-cli",
         "command": "bestblogs discover today --limit 20 --json 2>/dev/null",
         "next_steps": [
-            "Run: bestblogs auth login",
-            "Optional: bestblogs intake setup",
+            "运行：bestblogs auth login",
+            "可选：bestblogs intake setup",
         ],
     },
     "ak-rss-digest": {
         "label": "AK RSS Digest",
-        "description": "RSS/Atom digest from rookie-ricardo/erduo-skills.",
+        "description": "接入 rookie-ricardo/erduo-skills 里的 RSS/Atom 摘要。",
         "repo": "https://github.com/rookie-ricardo/erduo-skills.git",
         "install_kind": "git-subskill",
         "repo_dir": "erduo-skills",
         "link_name": "ak-rss-digest",
     },
 }
+
+
+class ChineseArgumentParser(argparse.ArgumentParser):
+    def format_usage(self) -> str:
+        return super().format_usage().replace("usage:", "用法：")
+
+    def format_help(self) -> str:
+        text = super().format_help()
+        replacements = {
+            "usage:": "用法：",
+            "optional arguments:": "选项：",
+            "options:": "选项：",
+        }
+        for source, target in replacements.items():
+            text = text.replace(source, target)
+        return text
 
 
 def expand_path(value: str) -> Path:
@@ -90,9 +105,9 @@ def write_yaml(path: Path, data: dict) -> None:
 
 def copy_if_missing(source: Path, target: Path, force: bool = False, dry_run: bool = False) -> bool:
     if target.exists() and not force:
-        print(f"[ok] {target.name} already exists")
+        print(f"[ok] {target.name} 已存在")
         return False
-    print(f"[ok] create {target.name} from {source.name}")
+    print(f"[ok] 从 {source.name} 创建 {target.name}")
     if dry_run:
         return True
     shutil.copyfile(source, target)
@@ -112,7 +127,7 @@ def run_command(cmd: list[str], cwd: Optional[Path] = None, dry_run: bool = Fals
 
 
 def ensure_directory(path: Path, dry_run: bool = False) -> None:
-    print(f"[ok] ensure directory: {path}")
+    print(f"[ok] 确保目录存在：{path}")
     if not dry_run:
         path.mkdir(parents=True, exist_ok=True)
 
@@ -138,19 +153,19 @@ def clone_or_update(repo: str, path: Path, dry_run: bool = False) -> None:
         if (path / ".git").exists():
             run_command(["git", "-C", str(path), "pull", "--ff-only"], dry_run=dry_run)
         else:
-            print(f"[warn] {path} exists and is not a git repository; skipping clone")
+            print(f"[warn] {path} 已存在，但不是 git 仓库；跳过 clone")
         return
     run_command(["git", "clone", repo, str(path)], dry_run=dry_run)
 
 
 def symlink_force(source: Path, target: Path, dry_run: bool = False) -> None:
-    print(f"[ok] link {target} -> {source}")
+    print(f"[ok] 建立软链 {target} -> {source}")
     if dry_run:
         return
     ensure_parent(target)
     if target.is_symlink() or target.exists():
         if target.is_dir() and not target.is_symlink():
-            print(f"[warn] {target} exists as a directory; leaving it unchanged")
+            print(f"[warn] {target} 已经是目录；保持不变")
             return
         target.unlink()
     target.symlink_to(source, target_is_directory=True)
@@ -165,7 +180,7 @@ def install_follow_builders(install_dir: Path, link_targets: list[Path], dry_run
     if command_exists("npm"):
         run_command(["npm", "install"], cwd=scripts_dir, dry_run=dry_run)
     else:
-        print("[warn] npm is not installed; follow-builders dependencies were not installed")
+        print("[warn] 未安装 npm；未安装 follow-builders 依赖")
 
     link_name = meta["link_name"]
     link_skill_to_targets(install_path, link_name, link_targets, dry_run=dry_run)
@@ -186,12 +201,12 @@ def install_bestblogs(dry_run: bool = False) -> dict:
     if command_exists("npm"):
         run_command(["npm", "install", "-g", "@bestblogs/cli"], dry_run=dry_run)
     else:
-        print("[warn] npm is not installed; @bestblogs/cli was not installed")
+        print("[warn] 未安装 npm；未安装 @bestblogs/cli")
 
     if command_exists("npx"):
         run_command(["npx", "@bestblogs/skills"], dry_run=dry_run)
     else:
-        print("[warn] npx is not installed; BestBlogs agent skills were not installed")
+        print("[warn] 未安装 npx；未安装 BestBlogs agent skills")
 
     for step in meta.get("next_steps", []):
         print(f"[next] {step}")
@@ -249,7 +264,7 @@ def parse_skill_list(value: Optional[str]) -> list[str]:
     names = [item.strip() for item in value.split(",") if item.strip()]
     unknown = [name for name in names if name not in EXTERNAL_SKILLS]
     if unknown:
-        raise SystemExit(f"Unknown external skill(s): {', '.join(unknown)}")
+        raise SystemExit(f"未知外部 skill：{', '.join(unknown)}")
     return names
 
 
@@ -263,11 +278,11 @@ def choose_external_skills(args, guided_setup: bool = False) -> list[str]:
         return []
 
     selected = []
-    print("\nOptional external skills:")
+    print("\n可选外部集成：")
     if guided_setup:
-        print("Recommended: install these integrations for broader AI, builder, blog, and RSS coverage.")
+        print("建议安装：这些集成可以扩大 AI、builder、博客和 RSS 来源覆盖。")
     for name, meta in EXTERNAL_SKILLS.items():
-        if prompt_yes_no(f"Install and enable {meta['label']}? {meta['description']}", default=guided_setup):
+        if prompt_yes_no(f"是否安装并启用 {meta['label']}？{meta['description']}", default=guided_setup):
             selected.append(name)
     return selected
 
@@ -276,7 +291,7 @@ def choose_link_targets(args, selected: list[str]) -> list[Path]:
     raw_targets: list[str] = []
 
     if args.skill_dir:
-        print("[warn] --skill-dir is deprecated; use --link-target instead")
+        print("[warn] --skill-dir 已弃用；请改用 --link-target")
         raw_targets.append(args.skill_dir)
 
     if args.link_target:
@@ -289,9 +304,9 @@ def choose_link_targets(args, selected: list[str]) -> list[Path]:
         if args.yes or args.install_external_skills or args.skills:
             raw_targets = DEFAULT_LINK_TARGETS[:]
         else:
-            if prompt_yes_no("Register external skills in ~/.claude/skills via symlinks?", default=True):
+            if prompt_yes_no("是否通过软链把外部 skills 注册到 ~/.claude/skills？", default=True):
                 raw_targets.append("~/.claude/skills")
-            if prompt_yes_no("Also register external skills in ~/.codex/skills via symlinks?", default=False):
+            if prompt_yes_no("是否也通过软链注册到 ~/.codex/skills？", default=False):
                 raw_targets.append("~/.codex/skills")
 
     return [expand_path(target) for target in raw_targets]
@@ -327,7 +342,7 @@ def configure_external_skills(config: dict, selected: list[str], install_dir: Pa
     external_config["link_targets"] = [str(path) for path in link_targets]
 
     for name in selected:
-        print(f"\nInstalling {name}...")
+        print(f"\n正在安装 {name}...")
         external_config[name] = install_external_skill(name, install_dir, link_targets, dry_run=dry_run)
 
 
@@ -349,50 +364,50 @@ def check_config() -> int:
 
     if not config_path.exists():
         first_time_setup = True
-        errors.append("config.yaml is missing. Run: python3 scripts/init.py")
+        errors.append("缺少 config.yaml。请运行：python3 scripts/init.py")
         add_init_recommendations(recommendations, first_time=True)
         return print_check_result(errors, warnings, recommendations, first_time_setup=first_time_setup)
     if not sources_path.exists():
         first_time_setup = True
-        errors.append("sources.yaml is missing. Run: python3 scripts/init.py")
+        errors.append("缺少 sources.yaml。请运行：python3 scripts/init.py")
         add_init_recommendations(recommendations, first_time=True)
 
     config = load_yaml(config_path)
     setup = config.get("setup") or {}
     if setup.get("initialized") is not True:
         first_time_setup = True
-        errors.append("setup.initialized is not true. Run: python3 scripts/init.py")
+        errors.append("setup.initialized 不是 true。请运行：python3 scripts/init.py")
         add_init_recommendations(recommendations, first_time=True)
     elif setup.get("guided_setup_completed") is not True:
-        warnings.append("guided setup has not been completed; run: python3 scripts/init.py to choose integrations, newsletters, output directory, and preferences")
-        recommendations.append("Complete guided setup: python3 scripts/init.py")
+        errors.append("尚未完成初始化向导。请运行 python3 scripts/init.py 选择集成、Newsletter、输出目录和个人偏好")
+        recommendations.append("完成初始化向导：python3 scripts/init.py")
     elif setup.get("guided_setup_completed") is True:
         incomplete_steps = [step for step, done in setup_steps(config).items() if not done]
         if incomplete_steps:
-            warnings.append(f"guided setup has incomplete step(s): {', '.join(incomplete_steps)}")
-            recommendations.append("Complete guided setup: python3 scripts/init.py")
+            errors.append(f"初始化向导仍有未完成步骤：{', '.join(incomplete_steps)}")
+            recommendations.append("完成初始化向导：python3 scripts/init.py")
     if int(setup.get("init_schema_version") or 0) < SETUP_SCHEMA_VERSION:
-        errors.append(f"setup.init_schema_version is outdated. Run: python3 scripts/init.py --force or migrate config.yaml")
+        errors.append("setup.init_schema_version 已过期。请运行：python3 scripts/init.py --force，或手动迁移 config.yaml")
         add_init_recommendations(recommendations)
 
     paths = config.get("paths") or {}
     for key in ("output_dir", "cache_dir"):
         raw = paths.get(key)
         if not raw:
-            errors.append(f"paths.{key} is missing")
+            errors.append(f"缺少 paths.{key}")
             add_init_recommendations(recommendations)
             continue
         path = expand_path(str(raw))
         if not path.exists():
-            errors.append(f"paths.{key} does not exist: {path}")
+            errors.append(f"paths.{key} 不存在：{path}")
             add_init_recommendations(recommendations)
         elif not path_writable(path):
-            errors.append(f"paths.{key} is not writable: {path}")
+            errors.append(f"paths.{key} 不可写：{path}")
 
     pipeline = config.get("pipeline") or {}
     enabled_sources = pipeline.get("enabled_sources") or []
     if not enabled_sources:
-        errors.append("pipeline.enabled_sources is empty")
+        errors.append("pipeline.enabled_sources 为空")
 
     check_email(errors, warnings, config, enabled_sources)
     check_external(errors, warnings, recommendations, config, enabled_sources)
@@ -411,30 +426,30 @@ def check_email(errors: list[str], warnings: list[str], config: dict, enabled_so
 
     def report_email_problem(message: str) -> None:
         if skip_unavailable:
-            warnings.append(f"{message}; source will be skipped because pipeline.skip_unavailable_sources is true")
+            warnings.append(f"{message}；因为 pipeline.skip_unavailable_sources 为 true，将跳过该来源")
         else:
             errors.append(message)
 
     if mode == "none":
-        report_email_problem("email source is enabled but email.mode is none")
+        report_email_problem("已启用 email 来源，但 email.mode 为 none")
         return
     if mode == "mcp":
-        warnings.append("email.mode is mcp; make sure the current Agent runtime provides an email/Gmail MCP tool")
+        warnings.append("email.mode 为 mcp；请确认当前 Agent 运行环境提供 email/Gmail MCP 工具")
         return
     if mode != "imap":
-        report_email_problem(f"unsupported email.mode: {mode}")
+        report_email_problem(f"不支持的 email.mode：{mode}")
         return
 
     imap_config = email_config.get("imap") or {}
     if not imap_config.get("host"):
-        report_email_problem("email.imap.host is missing")
+        report_email_problem("缺少 email.imap.host")
 
     username_env = imap_config.get("username_env") or "AI_NEWS_IMAP_USERNAME"
     password_env = imap_config.get("password_env") or "AI_NEWS_IMAP_PASSWORD"
     if not os.environ.get(username_env):
-        report_email_problem(f"IMAP username env is missing: {username_env}")
+        report_email_problem(f"缺少 IMAP 账号环境变量：{username_env}")
     if not os.environ.get(password_env):
-        report_email_problem(f"IMAP password env is missing: {password_env}")
+        report_email_problem(f"缺少 IMAP 密码/授权码环境变量：{password_env}")
 
 
 def check_external(errors: list[str], warnings: list[str], recommendations: list[str], config: dict, enabled_sources: list[str]) -> None:
@@ -450,62 +465,60 @@ def check_external(errors: list[str], warnings: list[str], recommendations: list
         if isinstance(item, dict) and item.get("enabled")
     }
     if not enabled_items:
-        message = "external_skills source is enabled but no external skill entry is enabled"
+        message = "已启用 external_skills 来源，但没有启用任何外部 skill 条目"
         if skip_unavailable:
-            warnings.append(f"{message}; source group will be skipped because pipeline.skip_unavailable_sources is true")
+            warnings.append(f"{message}；因为 pipeline.skip_unavailable_sources 为 true，将跳过该来源组")
         else:
             errors.append(message)
-        recommendations.append("Disable external_skills in config.yaml or run: python3 scripts/init.py --skills follow-builders,bestblogs,ak-rss-digest")
+        recommendations.append("在 config.yaml 里关闭 external_skills，或运行：python3 scripts/init.py --skills follow-builders,bestblogs,ak-rss-digest")
         return
 
     def report_external_problem(message: str, recommendation: str) -> None:
         if skip_unavailable:
-            warnings.append(f"{message}; source will be skipped because pipeline.skip_unavailable_sources is true")
+            warnings.append(f"{message}；因为 pipeline.skip_unavailable_sources 为 true，将跳过该来源")
         else:
             errors.append(message)
         recommendations.append(recommendation)
 
     install_dir = external_config.get("install_dir")
     if install_dir and not expand_path(str(install_dir)).exists():
-        warnings.append(f"external_skills.install_dir does not exist yet: {expand_path(str(install_dir))}")
+        warnings.append(f"external_skills.install_dir 尚不存在：{expand_path(str(install_dir))}")
 
     for name, item in enabled_items.items():
         command = item.get("command")
         if not command:
             report_external_problem(
-                f"external skill {name} is enabled but command is missing",
-                f"Reconfigure {name}: python3 scripts/init.py --skills {name}",
+                f"外部 skill {name} 已启用，但缺少 command",
+                f"重新配置 {name}：python3 scripts/init.py --skills {name}",
             )
 
         if name == "bestblogs":
             if not command_exists("bestblogs"):
                 report_external_problem(
-                    "bestblogs is enabled but the bestblogs command is not available",
-                    "Install BestBlogs CLI: python3 scripts/init.py --skills bestblogs",
+                    "bestblogs 已启用，但找不到 bestblogs 命令",
+                    "安装 BestBlogs CLI：python3 scripts/init.py --skills bestblogs",
                 )
             continue
 
         install_path = item.get("install_path")
         if not install_path:
             report_external_problem(
-                f"external skill {name} is enabled but install_path is missing",
-                f"Install {name}: python3 scripts/init.py --skills {name}",
+                f"外部 skill {name} 已启用，但缺少 install_path",
+                f"安装 {name}：python3 scripts/init.py --skills {name}",
             )
             continue
         if not expand_path(str(install_path)).exists():
             report_external_problem(
-                f"external skill {name} install_path is missing: {expand_path(str(install_path))}",
-                f"Install {name}: python3 scripts/init.py --skills {name}",
+                f"外部 skill {name} 的 install_path 不存在：{expand_path(str(install_path))}",
+                f"安装 {name}：python3 scripts/init.py --skills {name}",
             )
 
 
 def add_init_recommendations(recommendations: list[str], first_time: bool = False) -> None:
     if first_time:
-        recommendations.append("First-time guided setup: python3 scripts/init.py")
-        recommendations.append("Quick default setup: python3 scripts/init.py --yes")
+        recommendations.append("首次启动向导：python3 scripts/init.py")
         return
-    recommendations.append("Interactive setup: python3 scripts/init.py")
-    recommendations.append("Minimal non-interactive setup: python3 scripts/init.py --yes")
+    recommendations.append("交互式初始化：python3 scripts/init.py")
 
 
 def unique_items(items: list[str]) -> list[str]:
@@ -526,36 +539,39 @@ def print_check_result(
     first_time_setup: bool = False,
 ) -> int:
     if first_time_setup and errors:
-        print("[info] first-time setup detected: local initialization has not completed")
-        print("[info] guided initialization: python3 scripts/init.py")
-        print("[info] quick default initialization: python3 scripts/init.py --yes")
+        print("[info] 检测到首次启动：本地初始化尚未完成")
+        print("[info] 推荐运行初始化向导：python3 scripts/init.py")
     for warning in warnings:
         print(f"[warn] {warning}")
     for error in errors:
         print(f"[error] {error}")
     if errors:
-        print("[error] init check failed")
-        for recommendation in unique_items(recommendations) or ["Run: python3 scripts/init.py"]:
+        print("[error] 初始化检查失败")
+        for recommendation in unique_items(recommendations) or ["请运行：python3 scripts/init.py"]:
             print(f"[next] {recommendation}")
         return 1
     for recommendation in unique_items(recommendations):
-        print(f"[next] Optional: {recommendation}")
-    print("[ok] init check passed")
+        print(f"[next] 可选：{recommendation}")
+    print("[ok] 初始化检查通过")
     return 0
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Initialize ai-news-keji local config and optional external skills")
-    parser.add_argument("--check", action="store_true", help="Validate that init has completed and enabled sources are usable")
-    parser.add_argument("--yes", action="store_true", help="Use non-interactive defaults; does not install optional external skills")
-    parser.add_argument("--force", action="store_true", help="Overwrite config.yaml and sources.yaml from examples")
-    parser.add_argument("--dry-run", action="store_true", help="Print actions without changing files or installing packages")
-    parser.add_argument("--install-dir", default=DEFAULT_INSTALL_DIR, help="Managed directory for external skill source checkouts")
-    parser.add_argument("--link-target", action="append", default=None, help="Skill directory to receive symlinks; can be repeated")
-    parser.add_argument("--no-link", action="store_true", help="Install external skill sources without symlinking them into agent skill dirs")
-    parser.add_argument("--skill-dir", default=None, help="Deprecated alias for --link-target")
-    parser.add_argument("--install-external-skills", action="store_true", help="Install and enable all optional external skills")
-    parser.add_argument("--skills", default=None, help="Comma-separated external skills to install: follow-builders,bestblogs,ak-rss-digest")
+    parser = ChineseArgumentParser(
+        description="初始化 ai-news-keji 本地配置和可选外部集成",
+        add_help=False,
+    )
+    parser.add_argument("-h", "--help", action="help", help="显示帮助并退出")
+    parser.add_argument("--check", action="store_true", help="检查初始化是否完成，已启用来源是否可用")
+    parser.add_argument("--yes", action="store_true", help="使用非交互默认值；不会安装可选外部 skills")
+    parser.add_argument("--force", action="store_true", help="用示例模板覆盖 config.yaml 和 sources.yaml")
+    parser.add_argument("--dry-run", action="store_true", help="只打印将执行的动作，不修改文件或安装依赖")
+    parser.add_argument("--install-dir", default=DEFAULT_INSTALL_DIR, help="外部 skill 源码的受管理安装目录")
+    parser.add_argument("--link-target", action="append", default=None, help="接收软链的 skill 目录；可重复传入")
+    parser.add_argument("--no-link", action="store_true", help="只安装外部 skill 源码，不软链到 agent skill 目录")
+    parser.add_argument("--skill-dir", default=None, help="已弃用；请改用 --link-target")
+    parser.add_argument("--install-external-skills", action="store_true", help="安装并启用所有可选外部 skills")
+    parser.add_argument("--skills", default=None, help="要安装的外部 skills，逗号分隔：follow-builders,bestblogs,ak-rss-digest")
     args = parser.parse_args()
 
     if args.check:
@@ -569,17 +585,17 @@ def main() -> int:
 
     print(f"ai-news-keji init: {SKILL_ROOT}")
     if not existing_config or not existing_sources:
-        print("[info] first-time setup detected; creating local config files and runtime directories")
+        print("[info] 检测到首次启动；正在创建本地配置文件和运行目录")
     if guided_setup:
-        print("[info] starting guided setup")
+        print("[info] 开始初始化向导")
 
     if not command_exists("git"):
-        print("[warn] git is not installed; git-based external skills cannot be installed")
+        print("[warn] 未安装 git；无法安装基于 git 的外部 skills")
 
     create_local_configs(force=args.force, dry_run=args.dry_run)
     config = load_yaml(config_path if config_path.exists() else SKILL_ROOT / "config.example.yaml")
     if existing_config and (config.get("setup") or {}).get("initialized") is not True:
-        print("[info] local setup is incomplete; completing initialization state")
+        print("[info] 本地初始化状态不完整；正在补齐初始化状态")
     selected = choose_external_skills(args, guided_setup=guided_setup)
     if guided_setup:
         mark_setup_step(config, "external_skills_prompted")
@@ -594,7 +610,7 @@ def main() -> int:
         external_config = config.setdefault("external_skills", {})
         external_config.setdefault("install_dir", str(install_dir))
         external_config.setdefault("link_targets", [str(path) for path in link_targets])
-        print("[ok] no optional external skills selected")
+        print("[ok] 未选择可选外部 skills")
 
     if guided_setup:
         guided_setup_completed = run_guided_setup(config, SKILL_ROOT, dry_run=args.dry_run)
@@ -602,18 +618,18 @@ def main() -> int:
         guided_setup_completed = False
 
     if guided_setup and input_was_unavailable():
-        print("[warn] guided setup could not collect interactive input completely; run python3 scripts/init.py in a terminal")
+        print("[warn] 当前环境无法完整收集交互式输入；请在终端里运行 python3 scripts/init.py")
 
     update_setup_state(config, selected, guided_setup_completed=guided_setup_completed)
     create_runtime_dirs(config, dry_run=args.dry_run)
 
     if args.dry_run:
-        print("[ok] dry run complete; config.yaml was not updated")
+        print("[ok] dry run 完成；未更新 config.yaml")
         return 0
 
     write_yaml(config_path, config)
-    print("[ok] wrote config.yaml")
-    print("[next] Run: python3 scripts/init.py --check")
+    print("[ok] 已写入 config.yaml")
+    print("[next] 请运行：python3 scripts/init.py --check")
     return 0
 
 

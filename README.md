@@ -103,7 +103,7 @@ python3 scripts/init.py
 
 如果当前 Agent 运行环境无法接收交互式输入，它会提示用户在终端里先运行上面的命令。其他校验失败时不会继续抓取新闻，而是提示用户按输出里的 `[next]` 命令处理。
 
-非交互默认初始化会创建基础配置，但不会安装可选外部 Skills，也不会收集 Newsletter 或个人偏好：
+非交互默认初始化只用于显式跳过向导时创建基础配置；它不会安装可选外部 Skills，也不会收集 Newsletter 或个人偏好。普通 `/ai-news-keji` 日报流程仍要求先完成交互式初始化向导：
 
 ```bash
 .venv/bin/python scripts/init.py --yes

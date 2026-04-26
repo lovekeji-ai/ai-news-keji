@@ -1,5 +1,5 @@
-# Public source template for ai-news-keji.
-# Copy this file to sources.yaml and remove or add sources to match your subscriptions.
+# ai-news-keji 公开来源模板。
+# 复制为 sources.yaml 后，可按自己的订阅删减或新增来源。
 
 email:
   - name: TLDR AI

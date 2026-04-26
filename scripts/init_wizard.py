@@ -1,8 +1,8 @@
 """
-Interactive first-run wizard for ai-news-keji.
+ai-news-keji 首次启动交互式向导。
 
-Keep the user-facing onboarding flow here so scripts/init.py can stay focused
-on config checks, optional installer commands, and the CLI entrypoint.
+用户引导流程集中放在这里，让 scripts/init.py 专注于配置校验、
+可选安装命令和 CLI 入口。
 """
 from __future__ import annotations
 
@@ -37,11 +37,11 @@ NEWSLETTER_SUBSCRIBE_URLS = {
 }
 
 IMAP_HOST_HINTS = (
-    "Gmail / Google Workspace: imap.gmail.com, port 993, SSL on, use an App Password when required.",
-    "iCloud Mail: imap.mail.me.com, port 993, SSL on, use an app-specific password.",
-    "Outlook / Microsoft 365: outlook.office365.com, port 993, SSL on.",
-    "QQ Mail: imap.qq.com, port 993, SSL on, use an authorization code.",
-    "163 Mail: imap.163.com, port 993, SSL on, use an authorization code.",
+    "Gmail / Google Workspace：imap.gmail.com，端口 993，开启 SSL；如开启两步验证，请使用 App Password。",
+    "iCloud Mail：imap.mail.me.com，端口 993，开启 SSL；请使用 app-specific password。",
+    "Outlook / Microsoft 365：outlook.office365.com，端口 993，开启 SSL。",
+    "QQ 邮箱：imap.qq.com，端口 993，开启 SSL；请使用授权码。",
+    "网易 163 邮箱：imap.163.com，端口 993，开启 SSL；请使用授权码。",
 )
 
 
@@ -65,12 +65,12 @@ def load_yaml(path: Path) -> dict[str, Any]:
 
 def prompt_yes_no(question: str, default: bool = False) -> bool:
     global INPUT_EOF_SEEN
-    suffix = "Y/n" if default else "y/N"
+    suffix = "默认：是" if default else "默认：否"
     try:
         answer = input(f"{question} [{suffix}] ").strip().lower()
     except EOFError:
         INPUT_EOF_SEEN = True
-        print("[warn] no interactive input available; using the safe default: no")
+        print("[warn] 当前环境无法接收交互式输入，使用安全默认值：否")
         return False
     if not answer:
         return default
@@ -84,7 +84,7 @@ def prompt_text(question: str, default: str = "") -> str:
         answer = input(f"{question}{suffix} ").strip()
     except EOFError:
         INPUT_EOF_SEEN = True
-        print("[warn] no interactive input available; using the default value")
+        print("[warn] 当前环境无法接收交互式输入，使用默认值")
         return default
     return answer or default
 
@@ -97,19 +97,19 @@ def prompt_choice(question: str, choices: list[str], default: str) -> str:
             answer = input(f"{question} ({choice_text}) [{default}] ").strip().lower()
         except EOFError:
             INPUT_EOF_SEEN = True
-            print("[warn] no interactive input available; using the default value")
+            print("[warn] 当前环境无法接收交互式输入，使用默认值")
             return default
         if not answer:
             return default
         if answer in choices:
             return answer
-        print(f"[warn] choose one of: {choice_text}")
+        print(f"[warn] 请输入其中一个选项：{choice_text}")
 
 
 def prompt_multiline(question: str) -> str:
     global INPUT_EOF_SEEN
     print(question)
-    print("Enter one or more lines. Press Enter on an empty line to finish, or press Enter immediately to use defaults.")
+    print("可以输入一行或多行。输入空行结束；如果直接回车，则使用默认筛选逻辑。")
     lines: list[str] = []
     while True:
         prefix = "> " if not lines else "... "
@@ -118,7 +118,7 @@ def prompt_multiline(question: str) -> str:
         except EOFError:
             INPUT_EOF_SEEN = True
             if not lines:
-                print("[warn] no interactive input available; using default filtering rules")
+                print("[warn] 当前环境无法接收交互式输入，使用默认筛选逻辑")
             break
         if not line:
             break
@@ -170,36 +170,36 @@ def newsletter_subscribe_url(item: dict[str, Any]) -> str:
 def print_newsletter_subscription_guide(skill_root: Path) -> None:
     items = load_newsletter_sources(skill_root)
     if not items:
-        print("[warn] no newsletter sources found in sources.yaml or sources.example.yaml")
+        print("[warn] 未在 sources.yaml 或 sources.example.yaml 中找到 Newsletter 来源")
         return
 
-    print("\nNewsletter source coverage:")
-    print("Subscribe to the newsletters you want this digest to read. The sender address is used as the mailbox allowlist.")
+    print("\nNewsletter 来源覆盖：")
+    print("请先订阅你希望日报读取的 Newsletter。下方发件人地址会作为邮箱白名单。")
     for item in items:
-        name = str(item.get("name") or "Unnamed")
-        category = str(item.get("category") or "uncategorized")
-        frequency = str(item.get("frequency") or "unknown")
-        sender = str(item.get("from") or "unknown sender")
+        name = str(item.get("name") or "未命名")
+        category = str(item.get("category") or "未分类")
+        frequency = str(item.get("frequency") or "未知频率")
+        sender = str(item.get("from") or "未知发件人")
         url = newsletter_subscribe_url(item)
         link = f" | {url}" if url else ""
-        print(f"- {name} ({category}, {frequency}) | from: {sender}{link}")
+        print(f"- {name}（{category}，{frequency}）| 发件人：{sender}{link}")
 
 
 def print_imap_setup_guide() -> None:
-    print("\nIMAP setup:")
-    print("1. Enable IMAP in your mailbox settings.")
-    print("2. Use an app password or authorization code when your provider requires it.")
-    print("3. Store credentials in environment variables, not in config.yaml.")
+    print("\nIMAP 设置：")
+    print("1. 先在邮箱设置里开启 IMAP。")
+    print("2. 如果邮箱服务商要求，请使用 App Password / 授权码，不要使用明文登录密码。")
+    print("3. 邮箱账号和密码只放进环境变量，不写入 config.yaml。")
     for hint in IMAP_HOST_HINTS:
         print(f"- {hint}")
 
 
 def configure_newsletter(config: dict[str, Any], skill_root: Path) -> None:
-    print("\nNewsletter sources:")
+    print("\nNewsletter 来源：")
     print_newsletter_subscription_guide(skill_root)
     print_imap_setup_guide()
 
-    choice = prompt_choice("Connect newsletter sources now?", ["imap", "later", "no"], default="later")
+    choice = prompt_choice("现在接入 Newsletter 来源吗？", ["imap", "later", "no"], default="later")
     email_config = config.setdefault("email", {})
     imap_config = email_config.setdefault("imap", {})
 
@@ -210,27 +210,27 @@ def configure_newsletter(config: dict[str, Any], skill_root: Path) -> None:
     if choice == "imap":
         add_enabled_source(config, "email")
         email_config["mode"] = "imap"
-        imap_config["host"] = prompt_text("IMAP host", str(imap_config.get("host") or "imap.gmail.com"))
-        imap_config["folder"] = prompt_text("IMAP folder", str(imap_config.get("folder") or "INBOX"))
-        imap_config["username_env"] = prompt_text("Username environment variable", str(imap_config.get("username_env") or "AI_NEWS_IMAP_USERNAME"))
-        imap_config["password_env"] = prompt_text("Password environment variable", str(imap_config.get("password_env") or "AI_NEWS_IMAP_PASSWORD"))
-        print(f"[next] Set {imap_config['username_env']} and {imap_config['password_env']} before fetching newsletters")
-        print("[next] Smoke test: python3 scripts/fetch-email-imap.py --date YYYY-MM-DD --config config.yaml --sources sources.yaml")
+        imap_config["host"] = prompt_text("IMAP 服务器地址", str(imap_config.get("host") or "imap.gmail.com"))
+        imap_config["folder"] = prompt_text("IMAP 邮箱文件夹", str(imap_config.get("folder") or "INBOX"))
+        imap_config["username_env"] = prompt_text("邮箱账号环境变量名", str(imap_config.get("username_env") or "AI_NEWS_IMAP_USERNAME"))
+        imap_config["password_env"] = prompt_text("邮箱密码/授权码环境变量名", str(imap_config.get("password_env") or "AI_NEWS_IMAP_PASSWORD"))
+        print(f"[next] 抓取 Newsletter 前，请先设置环境变量 {imap_config['username_env']} 和 {imap_config['password_env']}")
+        print("[next] 烟测命令：python3 scripts/fetch-email-imap.py --date YYYY-MM-DD --config config.yaml --sources sources.yaml")
         return
 
     email_config["mode"] = "none"
     remove_enabled_source(config, "email")
     if choice == "later":
-        print("[next] Newsletter setup deferred; rerun python3 scripts/init.py or edit config.yaml when ready")
+        print("[next] 已暂缓 Newsletter 接入；准备好后可重新运行 python3 scripts/init.py，或手动编辑 config.yaml")
     else:
-        print("[ok] newsletter sources disabled")
+        print("[ok] 已关闭 Newsletter 来源")
 
 
 def configure_output_dir(config: dict[str, Any]) -> None:
-    print("\nOutput directory:")
+    print("\n输出目录：")
     paths = config.setdefault("paths", {})
     current = str(paths.get("output_dir") or "~/ai-news-keji/output")
-    output_dir = prompt_text("Default directory for generated Markdown notes", current)
+    output_dir = prompt_text("生成 Markdown 日报的默认目录", current)
     paths["output_dir"] = output_dir
     mark_setup_step(config, "output_dir_selected")
 
@@ -241,8 +241,8 @@ def write_preferences_file(config: dict[str, Any], skill_root: Path, preferences
     paths["filter_rules"] = raw_path
     filter_path = expand_path(raw_path)
 
-    if filter_path.exists() and not prompt_yes_no(f"{filter_path} already exists. Overwrite it with the new preferences?", default=False):
-        print("[ok] existing filter rules left unchanged")
+    if filter_path.exists() and not prompt_yes_no(f"{filter_path} 已存在。是否用新的偏好覆盖它？", default=False):
+        print("[ok] 已保留现有筛选规则文件")
         return False
 
     example_path = skill_root / "references" / "filter-rules.example.md"
@@ -251,19 +251,19 @@ def write_preferences_file(config: dict[str, Any], skill_root: Path, preferences
         [
             "# News Filtering Rules",
             "",
-            "These local filtering rules were created by ai-news-keji init.",
+            "这些本地筛选规则由 ai-news-keji 初始化向导创建。",
             "",
-            "## Personal Preference",
+            "## 个人偏好",
             "",
             preferences,
             "",
-            "## Default Baseline Rules",
+            "## 默认基线规则",
             "",
             default_rules,
         ]
     ).rstrip() + "\n"
 
-    print(f"[ok] write preference rules: {filter_path}")
+    print(f"[ok] 写入偏好筛选规则：{filter_path}")
     if dry_run:
         return True
     ensure_parent(filter_path)
@@ -272,10 +272,10 @@ def write_preferences_file(config: dict[str, Any], skill_root: Path, preferences
 
 
 def configure_preferences(config: dict[str, Any], skill_root: Path, dry_run: bool = False) -> None:
-    print("\nPersonal filtering preferences:")
-    print("Recommended: add your interests so the daily summary can rank news for you, not for a generic reader.")
+    print("\n个人筛选偏好：")
+    print("建议填写：这样日报会按你的兴趣排序，而不是按泛泛的新闻价值排序。")
     preferences = prompt_multiline(
-        "What should this digest care about? Include topics, roles, projects, formats, and things to avoid."
+        "你希望这份日报重点关注什么？可以写主题、角色、项目、内容形式，以及要避开的内容。"
     )
     setup = config.setdefault("setup", {})
     mark_setup_step(config, "preferences_prompted")
@@ -285,7 +285,7 @@ def configure_preferences(config: dict[str, Any], skill_root: Path, dry_run: boo
         return
 
     setup["preferences_configured"] = False
-    print("[ok] using bundled default filtering rules until a personal filter_rules file is provided")
+    print("[ok] 暂时使用内置默认筛选逻辑；之后可提供个人 filter_rules 文件")
 
 
 def run_guided_setup(config: dict[str, Any], skill_root: Path, dry_run: bool = False) -> bool:

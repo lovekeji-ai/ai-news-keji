@@ -11,18 +11,18 @@ setup:
     output_dir_selected: false
     preferences_prompted: false
 
-# ai-news-keji public configuration template.
-# Run scripts/init.py to create a local initialized config.yaml.
+# ai-news-keji 公开配置模板。
+# 运行 scripts/init.py 创建已初始化的本地 config.yaml。
 
 paths:
-  # Raw daily notes and summary notes are written here.
+  # 原始日报和摘要日报会写入这个目录。
   output_dir: ~/ai-news-keji/output
 
-  # Optional local scoring rules and personal interest profile.
-  # If this path is missing, the skill falls back to references/filter-rules.example.md.
+  # 可选的本地评分规则和个人兴趣画像。
+  # 如果这个路径缺失，skill 会回退到 references/filter-rules.example.md。
   filter_rules: ~/ai-news-keji/filter-rules.md
 
-  # Keep this outside the skill folder because raw caches can contain private email content.
+  # 建议放在 skill 目录之外，因为原始缓存可能包含私人邮件内容。
   cache_dir: ~/.cache/ai-news-keji
 
 settings:
@@ -34,7 +34,7 @@ settings:
   continuation_penalty: 2
 
 pipeline:
-  # Enable only source groups you have configured.
+  # 只启用你已经配置好的来源组。
   enabled_sources:
     - rss
     - websites
@@ -43,8 +43,8 @@ pipeline:
 
 email:
   # none / imap / mcp
-  # Use "imap" for a standard mailbox connection without requiring a Gmail MCP.
-  # Keep secrets in environment variables, never in this YAML file.
+  # 使用 imap 可以连接标准邮箱，不需要 Gmail MCP。
+  # 机密信息只放在环境变量里，不要写进这个 YAML 文件。
   mode: none
   imap:
     host: imap.gmail.com
@@ -56,7 +56,7 @@ email:
     max_body_chars: 20000
 
 external_skills:
-  # scripts/init.py installs original repos here and symlinks selected skills to link_targets.
+  # scripts/init.py 会把原始仓库安装到这里，并把选择的 skills 软链到 link_targets。
   install_dir: ~/.local/share/ai-news-keji/external-skills
   link_targets:
     - ~/.claude/skills
