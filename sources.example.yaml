@@ -61,11 +61,6 @@ email:
     frequency: daily
 
 rss:
-  - name: 量子位
-    url: https://www.qbitai.com/feed
-    category: AI 中文媒体
-    frequency: daily
-
   - name: 机器之心
     url: https://www.jiqizhixin.com/rss
     category: AI 中文媒体

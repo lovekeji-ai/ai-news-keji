@@ -217,7 +217,7 @@ email:
 
 | 类型 | 示例 | 说明 |
 | --- | --- | --- |
-| RSS | 量子位、机器之心、三花 AI 快讯 | 中文 AI 和科技媒体，适合作为每日基础盘 |
+| RSS | 机器之心、三花 AI 快讯 | 中文 AI 和科技媒体，适合作为每日基础盘 |
 | Newsletter | TLDR、The Rundown AI、The Neuron、Ben's Bites | 编辑精选层，适合快速判断“今天什么重要” |
 | 外部 Skill/CLI | follow-builders、bestblogs、ak-rss-digest | 可选增强源，用于接入更大的博客、X、播客或独立源集合 |
 | Website | Readwise Weekly | 众包精选层，用读者高亮行为发现长内容 |
