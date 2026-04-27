@@ -281,13 +281,29 @@ bestblogs intake setup
 
 安装完成后，`init.py` 会更新 `config.yaml` 的 `external_skills` 命令，并把 `external_skills` 加入 `pipeline.enabled_sources`。BestBlogs 是 CLI 形态，不放进 `external-skills/`；`follow-builders` 和 `ak-rss-digest` 会放进 `external-skills/` 并软链到 Agent skill 目录。
 
-## IMAP 邮件配置
+## Newsletter 邮件配置（IMAP 或 MCP）
 
-如果你想抓取 Newsletter，但不想配置 Gmail MCP，可以使用标准 IMAP。
+抓取 Newsletter 有两种接入方式，对应 `email.mode` 的 `imap` 和 `mcp`。首次运行 `scripts/init.py` 时会先列出 `sources.yaml` 里的 Newsletter 订阅清单（名称、分类、频率、发件人、订阅入口），订阅完之后再在向导里选择接入方式。
 
-首次运行 `scripts/init.py` 时会先列出 `sources.yaml` 里的 Newsletter 订阅清单，包括名称、分类、频率、发件人和订阅入口。先订阅需要的 Newsletter，再选择 `imap` 接入邮箱。
+### IMAP vs MCP：怎么选
 
-先在 `config.yaml` 里启用 email：
+| 维度 | `imap` | `mcp` |
+| --- | --- | --- |
+| 适用邮箱 | 任意标准 IMAP 邮箱（Gmail、iCloud、Outlook、QQ、163 等） | 取决于你装了哪个 MCP server，目前主要是 Gmail / Google Workspace |
+| 凭据形态 | App Password / 授权码，存在本机环境变量 | OAuth，由 MCP server 全权管理；本仓库不保存任何凭据 |
+| 安全模型 | 一旦泄露相当于全量邮箱读权限 | MCP server 可按工具粒度授权，且能随时在 Google 账号撤销 |
+| 故障定位 | 直接跑 `fetch-email-imap.py` 烟测，链路短 | MCP server 是黑盒，调试需要看 runtime 日志 |
+| 运行环境 | 任意 Python 环境 / CI / cron 都能跑 | 必须在已注册对应 MCP server 的 Agent runtime（Claude Code / Codex 等）内运行 |
+| 多邮箱 | 一份配置一个邮箱，切换简单 | 通常绑定到 MCP server 当前登录的那个账号 |
+
+经验法则：
+
+- **默认选 IMAP。** 兼容性最好，独立烟测最方便，不依赖 runtime 状态。
+- **已经在用 Gmail MCP（或类似邮件 MCP server）就选 MCP。** 省掉一份 App Password，凭据由 OAuth 集中管理。
+
+### 方式 A：IMAP
+
+在 `config.yaml` 里启用 email：
 
 ```yaml
 pipeline:
@@ -323,13 +339,34 @@ IMAP 烟测：
 .venv/bin/python scripts/fetch-email-imap.py --date 2026-04-25 --config config.yaml --sources sources.yaml
 ```
 
-脚本会：
+`fetch-email-imap.py` 会：
 
 - 只读取 `sources.yaml` 里 `email` 白名单匹配的发件人
 - 支持 `subject_contains` 进一步区分同一个发件人的不同 Newsletter
 - 使用 `BODY.PEEK[]` 获取邮件，避免把邮件标记为已读
 - 提取 `text/plain` 正文，必要时把 HTML 转成纯文本
 - 输出 JSON 到 stdout，不主动写缓存文件
+
+### 方式 B：MCP
+
+前置条件：你的 Agent runtime（如 Claude Code、Codex 等）已经注册了 Gmail / 邮件类 MCP server，并且授予了"搜索邮件 + 按消息 ID 读取正文"的权限。可在 runtime 里先做一次手动调用确认工具可用。
+
+`config.yaml` 只需把 `mode` 改为 `mcp`，`imap` 字段可以保留也可以删掉（不会被读取）：
+
+```yaml
+pipeline:
+  enabled_sources:
+    - rss
+    - websites
+    - email
+
+email:
+  mode: mcp
+```
+
+跑日报时由 Agent 直接通过 MCP 工具按发件人 + 目标日期检索 Newsletter（参见 `SKILL.md` 的"邮件来源"步骤），无需另外跑 IMAP 脚本。本仓库的 `scripts/fetch-email-imap.py` 在 MCP 模式下不会被使用。
+
+`scripts/init.py --check` 在 mcp 模式下只会发出"请确认 MCP 工具可用"的提示，不强校验任何字段——MCP server 的存在性由 runtime 自己负责。
 
 ## 检查安装
 

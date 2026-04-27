@@ -43,9 +43,12 @@ pipeline:
 
 email:
   # none / imap / mcp
-  # 使用 imap 可以连接标准邮箱，不需要 Gmail MCP。
-  # 机密信息只放在环境变量里，不要写进这个 YAML 文件。
+  # - imap：连接任意标准邮箱（Gmail、iCloud、Outlook、QQ、163 等），通过环境变量提供 App Password / 授权码。
+  # - mcp： 由当前 Agent runtime（Claude Code / Codex 等）注册的 Gmail/邮件 MCP server 来读取邮件，
+  #         OAuth 授权由 MCP server 管理；本仓库无需保存任何凭据。
+  # 详见 README "IMAP vs MCP" 一节。机密信息只放在环境变量或 MCP server 中，不要写进本文件。
   mode: none
+  # mode = imap 时使用以下字段
   imap:
     host: imap.gmail.com
     port: 993
@@ -54,6 +57,8 @@ email:
     username_env: AI_NEWS_IMAP_USERNAME
     password_env: AI_NEWS_IMAP_PASSWORD
     max_body_chars: 20000
+  # mode = mcp 时无额外字段；请确保运行 Agent 的环境已注册 Gmail/邮件 MCP server，
+  # 并具备搜索邮件、按消息 ID 读取正文的权限。
 
 external_skills:
   # scripts/init.py 会把原始仓库安装到这里，并把选择的 skills 软链到 link_targets。

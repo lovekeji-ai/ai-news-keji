@@ -224,10 +224,12 @@ def print_step_newsletter(heading: str = "第 2 步") -> None:
     print("  question: 是否接入邮件 Newsletter 来源？")
     print("  multiSelect: false")
     print("  options:")
-    print("  - imap（现在配置 IMAP 接入）")
+    print("  - imap（现在配置 IMAP 接入；适合任意标准邮箱）")
+    print("  - mcp（使用当前 Agent runtime 已注册的 Gmail / 邮件 MCP server）")
     print("  - later（先跳过，稍后再配）")
     print("  - no（不接入邮件来源）")
     print("  说明前先读取 sources.yaml 或 sources.example.yaml，列出 Newsletter 名称、发件人和订阅链接。")
+    print("  IMAP vs MCP 简介：IMAP 兼容所有邮箱、可独立烟测；MCP 走 OAuth、由 runtime 管理凭据，但目前主要面向 Gmail 且需要预先在 Agent 环境配好 MCP server。")
 
 
 def print_step_imap(heading: str = "第 2.1 步（仅当上一步选 imap 时）") -> None:
@@ -297,7 +299,7 @@ def configure_newsletter(config: dict[str, Any], skill_root: Path) -> None:
     print_newsletter_subscription_guide(skill_root)
     print_imap_setup_guide()
 
-    choice = prompt_choice("现在接入 Newsletter 来源吗？", ["imap", "later", "no"], default="later")
+    choice = prompt_choice("现在接入 Newsletter 来源吗？", ["imap", "mcp", "later", "no"], default="later")
     email_config = config.setdefault("email", {})
     imap_config = email_config.setdefault("imap", {})
 
@@ -314,6 +316,13 @@ def configure_newsletter(config: dict[str, Any], skill_root: Path) -> None:
         imap_config["password_env"] = prompt_text("邮箱密码/授权码环境变量名", str(imap_config.get("password_env") or "AI_NEWS_IMAP_PASSWORD"))
         print(f"[next] 抓取 Newsletter 前，请先设置环境变量 {imap_config['username_env']} 和 {imap_config['password_env']}")
         print("[next] 烟测命令：python3 scripts/fetch-email-imap.py --date YYYY-MM-DD --config config.yaml --sources sources.yaml")
+        return
+
+    if choice == "mcp":
+        add_enabled_source(config, "email")
+        email_config["mode"] = "mcp"
+        print("[next] 请确认当前 Agent runtime（Claude Code / Codex 等）已注册 Gmail 或邮件 MCP server，且具备搜索 + 读取邮件正文的权限。")
+        print("[next] MCP 模式下没有独立烟测脚本；首次跑日报时由 Agent 直接调用 MCP 工具按发件人 + 日期检索 Newsletter。")
         return
 
     email_config["mode"] = "none"
@@ -406,8 +415,8 @@ def apply_newsletter_answer(config: dict[str, Any], answer: Any) -> None:
         answer = {}
 
     choice = str(answer.get("choice") or answer.get("mode") or "later").strip().lower()
-    if choice not in {"imap", "later", "no"}:
-        raise ValueError("newsletter.choice 必须是 imap、later 或 no")
+    if choice not in {"imap", "mcp", "later", "no"}:
+        raise ValueError("newsletter.choice 必须是 imap、mcp、later 或 no")
 
     email_config = config.setdefault("email", {})
     imap_config = email_config.setdefault("imap", {})
@@ -427,6 +436,13 @@ def apply_newsletter_answer(config: dict[str, Any], answer: Any) -> None:
             answer.get("password_env") or imap_config.get("password_env") or "AI_NEWS_IMAP_PASSWORD"
         )
         print(f"[next] 抓取 Newsletter 前，请先设置环境变量 {imap_config['username_env']} 和 {imap_config['password_env']}")
+        return
+
+    if choice == "mcp":
+        add_enabled_source(config, "email")
+        email_config["mode"] = "mcp"
+        print("[next] 请确认当前 Agent runtime 已注册 Gmail / 邮件 MCP server，且具备搜索 + 读取邮件正文的权限。")
+        print("[next] MCP 模式无独立烟测脚本；首次跑日报时由 Agent 直接通过 MCP 工具按发件人 + 日期检索 Newsletter。")
         return
 
     email_config["mode"] = "none"
