@@ -1,3 +1,5 @@
+**中文** | [English](README.en.md)
+
 # ai-news-keji
 
 > AI / 科技新闻日报 Skill。让高质量信息源替你筛一遍，再让 Agent 替你跨源去重、按你的兴趣评分、整理成可直接放进 Obsidian 的每日摘要。
