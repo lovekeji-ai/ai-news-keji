@@ -75,6 +75,9 @@ external_skills:
     command: cd ~/.local/share/ai-news-keji/external-skills/follow-builders/scripts && node prepare-digest.js 2>/dev/null
 
   bestblogs:
+    # 仅安装 BestBlogs CLI（不安装对话式 Agent Skills）。
+    # 启用后必须执行 `bestblogs auth login`，否则 discover 接口会返回空数据，日报里这一节会被跳过。
+    # API Key 在 https://bestblogs.dev/settings 生成。
     enabled: false
     install_kind: npm-cli
     repo: https://github.com/ginobefun/bestblogs

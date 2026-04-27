@@ -58,13 +58,13 @@ EXTERNAL_SKILLS = {
     },
     "bestblogs": {
         "label": "BestBlogs",
-        "description": "安装 BestBlogs CLI 和可选 Agent skills，用于精选技术阅读。",
+        "description": "安装 BestBlogs CLI，用于精选技术阅读（不安装对话式 Agent Skills）。",
         "repo": "https://github.com/ginobefun/bestblogs",
         "install_kind": "npm-cli",
         "command": "bestblogs discover today --limit 20 --json 2>/dev/null",
         "next_steps": [
-            "运行：bestblogs auth login",
-            "可选：bestblogs intake setup",
+            "登录（必须）：bestblogs auth login，按提示粘贴在 https://bestblogs.dev/settings 生成的 API Key",
+            "可选：bestblogs intake setup（设置兴趣画像）",
         ],
     },
     "ak-rss-digest": {
@@ -225,24 +225,77 @@ def install_follow_builders(install_dir: Path, link_targets: list[Path], dry_run
     }
 
 
+def bestblogs_logged_in() -> Optional[bool]:
+    """返回 True/False/None。None 表示无法判定（命令缺失或调用失败）。"""
+    if not command_exists("bestblogs"):
+        return None
+    try:
+        result = subprocess.run(
+            ["bestblogs", "auth", "status", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    try:
+        payload = json.loads(result.stdout or "{}")
+    except json.JSONDecodeError:
+        return None
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, dict):
+        return None
+    return bool(data.get("loggedIn"))
+
+
+def guide_bestblogs_login(dry_run: bool = False) -> None:
+    if dry_run:
+        print("[next] 登录（必须）：bestblogs auth login")
+        return
+
+    status = bestblogs_logged_in()
+    if status is True:
+        print("[ok] BestBlogs 已登录（bestblogs auth status 返回 loggedIn=true）")
+        return
+    if status is None:
+        print("[warn] 未能确认 BestBlogs 登录状态；安装完成后请手动运行：bestblogs auth login")
+        return
+
+    print("[next] BestBlogs 当前未登录，未登录时 `bestblogs discover` 会返回空数据，日报里这一节将被跳过。")
+    print("[next] 请在 https://bestblogs.dev/settings 生成 API Key，然后运行：bestblogs auth login")
+    if not prompt_yes_no("现在就交互式登录吗？（会调起 bestblogs auth login）", default=True):
+        print("[next] 跳过登录；准备好 API Key 后请手动运行：bestblogs auth login")
+        return
+
+    try:
+        subprocess.run(["bestblogs", "auth", "login"], check=False)
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f"[warn] 调起 bestblogs auth login 失败：{exc}；请手动运行该命令")
+        return
+
+    after = bestblogs_logged_in()
+    if after is True:
+        print("[ok] BestBlogs 登录成功")
+    elif after is False:
+        print("[warn] 登录后 bestblogs auth status 仍显示未登录；请检查 API Key 后重试")
+    else:
+        print("[warn] 未能确认登录状态，请稍后运行：bestblogs auth status")
+
+
 def install_bestblogs(dry_run: bool = False) -> dict:
     meta = EXTERNAL_SKILLS["bestblogs"]
 
     if command_exists("bestblogs"):
-        print("[ok] BestBlogs 本条已安装（检测到 bestblogs 命令），跳过 npm install")
+        print("[ok] BestBlogs CLI 已安装（检测到 bestblogs 命令），跳过 npm install")
     else:
         if command_exists("npm"):
             run_command(["npm", "install", "-g", "@bestblogs/cli"], dry_run=dry_run)
         else:
             print("[warn] 未安装 npm；未安装 @bestblogs/cli")
 
-        if command_exists("npx"):
-            run_command(["npx", "@bestblogs/skills"], dry_run=dry_run)
-        else:
-            print("[warn] 未安装 npx；未安装 BestBlogs agent skills")
-
-    for step in meta.get("next_steps", []):
-        print(f"[next] {step}")
+    guide_bestblogs_login(dry_run=dry_run)
 
     return {
         "enabled": True,
@@ -583,6 +636,15 @@ def check_external(errors: list[str], warnings: list[str], recommendations: list
                     "bestblogs 已启用，但找不到 bestblogs 命令",
                     "安装 BestBlogs CLI：python3 scripts/init.py --skills bestblogs",
                 )
+            else:
+                login_status = bestblogs_logged_in()
+                if login_status is False:
+                    report_external_problem(
+                        "bestblogs 已启用，但 BestBlogs CLI 未登录；未登录时 discover 接口返回空数据",
+                        "登录 BestBlogs：bestblogs auth login（API Key 在 https://bestblogs.dev/settings 生成）",
+                    )
+                elif login_status is None:
+                    warnings.append("无法确认 BestBlogs 登录状态；如果日报里 BestBlogs 一直为空，请运行 bestblogs auth status 排查")
             continue
 
         install_path = item.get("install_path")

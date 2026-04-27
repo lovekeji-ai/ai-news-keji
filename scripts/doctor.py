@@ -5,8 +5,11 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import platform
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -222,8 +225,40 @@ def check_external_skills(config: dict) -> None:
                 else:
                     status("warn", f"{name} install_path 不存在：{expanded}")
 
+            if name == "bestblogs":
+                check_bestblogs_auth()
+
     if not enabled:
         status("info", "外部 skills 已关闭")
+
+
+def check_bestblogs_auth() -> None:
+    if not shutil.which("bestblogs"):
+        status("warn", "bestblogs 已启用但找不到 bestblogs 命令；请运行 python3 scripts/init.py --skills bestblogs")
+        return
+    try:
+        result = subprocess.run(
+            ["bestblogs", "auth", "status", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        status("warn", f"调用 bestblogs auth status 失败：{exc}")
+        return
+    if result.returncode != 0:
+        status("warn", "bestblogs auth status 返回非零；请运行 bestblogs auth status 排查")
+        return
+    try:
+        payload = json.loads(result.stdout or "{}")
+    except json.JSONDecodeError:
+        status("warn", "bestblogs auth status 输出非 JSON；请检查 BestBlogs CLI 版本")
+        return
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if isinstance(data, dict) and data.get("loggedIn"):
+        status("ok", "BestBlogs 已登录")
+    else:
+        status("warn", "BestBlogs 未登录；未登录时 discover 接口返回空数据。请运行：bestblogs auth login")
 
 
 def check_publish_safety() -> int:

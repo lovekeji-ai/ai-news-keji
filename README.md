@@ -272,12 +272,17 @@ email:
 .venv/bin/python scripts/init.py --link-target ~/.claude/skills --link-target ~/.codex/skills --skills follow-builders,ak-rss-digest
 ```
 
-BestBlogs 安装后通常还需要登录和冷启动兴趣配置：
+BestBlogs 只安装 CLI（`@bestblogs/cli`），日报流水线靠它的 `bestblogs discover today --json` 拉数据；本仓库不再安装 BestBlogs 的对话式 Agent Skills（`@bestblogs/skills`）。如果你单独想在 Claude Code 里通过自然语言触发 BestBlogs，请按官方文档自行 `npx @bestblogs/skills`，与本项目流水线互不影响。
+
+**登录是必须步骤**。BestBlogs CLI 未登录时，`discover` 接口返回空数据，日报里 BestBlogs 一节会被跳过。`scripts/init.py` 安装完 CLI 之后会调用 `bestblogs auth status` 检测登录状态，未登录时会提示并可选地交互式调起：
 
 ```bash
-bestblogs auth login
-bestblogs intake setup
+bestblogs auth login            # 粘贴在 https://bestblogs.dev/settings 生成的 API Key
+bestblogs intake setup          # 可选：设置兴趣画像
+bestblogs auth status           # 验证登录状态
 ```
+
+`scripts/init.py --check` 和 `scripts/doctor.py` 在 BestBlogs 启用但未登录时都会发出警告。
 
 安装完成后，`init.py` 会更新 `config.yaml` 的 `external_skills` 命令，并把 `external_skills` 加入 `pipeline.enabled_sources`。BestBlogs 是 CLI 形态，不放进 `external-skills/`；`follow-builders` 和 `ak-rss-digest` 会放进 `external-skills/` 并软链到 Agent skill 目录。
 
