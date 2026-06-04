@@ -38,6 +38,8 @@ PUBLIC_FILES = (
     "scripts/init.py",
     "scripts/init_wizard.py",
     "scripts/check-run-state.py",
+    "scripts/normalize-external-source.py",
+    "scripts/sync-hermes-skill.sh",
     "scripts/fetch-email-imap.py",
     "scripts/fetch-rss.py",
     "scripts/doctor.py",
