@@ -108,6 +108,19 @@ def load_bestblogs_deep(resource_id: str) -> tuple[dict[str, Any] | None, dict[s
 
     stdout = result.stdout or ""
     stderr = result.stderr or ""
+
+    payload = None
+    if stdout.strip():
+        try:
+            payload = json.loads(stdout)
+        except json.JSONDecodeError:
+            payload = None
+
+    data = payload.get("data") if isinstance(payload, dict) else None
+    meta = data.get("meta") if isinstance(data, dict) else None
+    if isinstance(meta, dict):
+        return meta, None
+
     combined = f"{stdout}\n{stderr}".upper()
     if "RATE_LIMITED" in combined or "429" in combined:
         return None, {
@@ -122,16 +135,10 @@ def load_bestblogs_deep(resource_id: str) -> tuple[dict[str, Any] | None, dict[s
             "message": (stderr or stdout or "bestblogs read deep failed").strip(),
         }
 
-    try:
-        payload = json.loads(stdout)
-    except json.JSONDecodeError as exc:
-        return None, {"status": "invalid_json", "message": str(exc)}
+    if stdout.strip() and payload is None:
+        return None, {"status": "invalid_json", "message": "BestBlogs deep-read stdout is not valid JSON"}
 
-    data = payload.get("data") if isinstance(payload, dict) else None
-    meta = data.get("meta") if isinstance(data, dict) else None
-    if not isinstance(meta, dict):
-        return None, {"status": "missing_meta", "message": "BestBlogs deep-read JSON missing data.meta"}
-    return meta, None
+    return None, {"status": "missing_meta", "message": "BestBlogs deep-read JSON missing data.meta"}
 
 
 def normalize_bestblogs(
